@@ -14,19 +14,33 @@ pkg update -y && pkg upgrade -y
 echo "[2/8] Instalando Node.js, Python y herramientas..."
 pkg install -y nodejs python git ffmpeg wget
 
-# 3. Instalar dependencias de Node.js
-echo "[3/8] Instalando Baileys y librerías..."
-npm install @whiskeysockets/baileys@6.7.0 qrcode-terminal @xenova/transformers
+# 3. Limpiar caché de npm (para evitar errores)
+echo "[3/8] Limpiando caché de npm..."
+npm cache clean --force
 
-# 4. Instalar Whisper (para voz)
-echo "[4/8] Instalando Whisper (reconocimiento de voz)..."
+# 4. Instalar dependencias de Node.js (FORZADO)
+echo "[4/8] Instalando Baileys y librerías..."
+npm install -g npm@latest
+npm install @whiskeysockets/baileys@6.7.0 qrcode-terminal @xenova/transformers --force
+
+# 5. Verificar que Baileys se instaló
+echo "[5/8] Verificando instalación..."
+if [ -d "node_modules/@whiskeysockets/baileys" ]; then
+    echo "✅ Baileys instalado correctamente"
+else
+    echo "⚠️ Reintentando instalación de Baileys..."
+    npm install @whiskeysockets/baileys@6.7.0 --force
+fi
+
+# 6. Instalar Whisper (para voz)
+echo "[6/8] Instalando Whisper (reconocimiento de voz)..."
 pip install openai-whisper
 
-# 5. Descargar Gemma 3 (IA local)
-echo "[5/8] Descargando inteligencia artificial Gemma 3..."
+# 7. Descargar Gemma 3 (IA local)
+echo "[7/8] Descargando inteligencia artificial Gemma 3..."
 wget -O gemma-3-1b-it-Q4_0.gguf https://huggingface.co/google/gemma-3-1b-it-quantized/resolve/main/gemma-3-1b-it-Q4_0.gguf
 
-# 6. Pedir número del dueño
+# 8. Pedir número del dueño
 echo ""
 echo "===================================="
 echo "📱 CONFIGURACIÓN INICIAL"
@@ -36,16 +50,16 @@ echo "Ingresa tu número de WhatsApp (dueño):"
 echo "Ejemplo: 5215512345678"
 read NUMERO_DUENO
 
-# 7. Guardar configuración
-echo "[6/8] Guardando configuración..."
+# 9. Guardar configuración
+echo "[8/8] Guardando configuración..."
 echo '{"dueno":"'$NUMERO_DUENO'","familiares":{},"menu":{"desayunos":[],"comida":[]}}' > config.json
 
-# 8. Crear archivo de inicio automático
-echo "[7/8] Preparando inicio automático..."
-echo "node bot.js" > iniciar.sh
-chmod +x iniciar.sh
+# 10. Crear archivo de prueba de Baileys
+echo "const test = require('@whiskeysockets/baileys'); console.log('✅ Baileys cargado correctamente');" > test.js
+node test.js
+rm test.js
 
-# 9. Mensaje final y limpieza
+# 11. Mensaje final
 clear
 echo "===================================="
 echo "✅ INSTALACIÓN COMPLETADA"
@@ -54,7 +68,7 @@ echo ""
 echo "AHORA SE GENERARÁ EL CÓDIGO DE EMPAREJAMIENTO"
 echo ""
 
-# 10. INICIAR EL BOT Y MOSTRAR CÓDIGO
+# 12. INICIAR EL BOT Y MOSTRAR CÓDIGO
 echo "Iniciando bot..."
 sleep 2
 
@@ -118,6 +132,15 @@ async function iniciar() {
     
   } catch (error) {
     console.log('Error:', error.message);
+    console.log('');
+    console.log('====================================');
+    console.log('⚠️  ERROR: No se pudo cargar Baileys');
+    console.log('====================================');
+    console.log('');
+    console.log('Ejecuta estos comandos manualmente:');
+    console.log('1. npm install @whiskeysockets/baileys@6.7.0 --force');
+    console.log('2. node -e \"require(\\'@whiskeysockets/baileys\\')\"');
+    console.log('3. node bot.js');
   }
 }
 
