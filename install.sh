@@ -1,85 +1,125 @@
 #!/bin/bash
 
 echo "===================================="
-echo "🍳 INSTALADOR DEL VENDEDOR IA - COMIDA MEXICANA"
+echo "🍳 VENDEDOR IA - INSTALACIÓN AUTOMÁTICA"
 echo "===================================="
-echo ""
-echo "Este programa va a instalar todo lo necesario:"
-echo "  - Node.js y Baileys (para conectar WhatsApp)"
-echo "  - Whisper (para entender tu voz)"
-echo "  - Gemma 3 (la inteligencia artificial)"
-echo ""
-echo "SOLO VAS A TENER QUE RESPONDER 1 PREGUNTA"
+echo "Esto tomará 5-10 minutos. No cierres Termux."
 echo ""
 
-sleep 3
-
-echo "¿Listo para empezar? (Enter para continuar)"
-read
-
-echo ""
-echo "📦 PASO 1 DE 7: Actualizando Termux..."
+# 1. Actualizar Termux
+echo "[1/8] Actualizando Termux..."
 pkg update -y && pkg upgrade -y
 
-echo ""
-echo "📦 PASO 2 DE 7: Instalando herramientas básicas..."
+# 2. Instalar herramientas básicas
+echo "[2/8] Instalando Node.js, Python y herramientas..."
 pkg install -y nodejs python git ffmpeg wget
 
-echo ""
-echo "📦 PASO 3 DE 7: Instalando dependencias de Node.js..."
-npm install @whiskeysockets/baileys qrcode-terminal @xenova/transformers
+# 3. Instalar dependencias de Node.js
+echo "[3/8] Instalando Baileys y librerías..."
+npm install @whiskeysockets/baileys@6.7.0 qrcode-terminal @xenova/transformers
 
-echo ""
-echo "📦 PASO 4 DE 7: Instalando Whisper (para entender tu voz)..."
+# 4. Instalar Whisper (para voz)
+echo "[4/8] Instalando Whisper (reconocimiento de voz)..."
 pip install openai-whisper
 
-echo ""
-echo "📦 PASO 5 DE 7: Descargando la inteligencia artificial (Gemma 3)..."
-wget https://huggingface.co/google/gemma-3-1b-it-quantized/resolve/main/gemma-3-1b-it-Q4_0.gguf
+# 5. Descargar Gemma 3 (IA local)
+echo "[5/8] Descargando inteligencia artificial Gemma 3..."
+wget -O gemma-3-1b-it-Q4_0.gguf https://huggingface.co/google/gemma-3-1b-it-quantized/resolve/main/gemma-3-1b-it-Q4_0.gguf
 
+# 6. Pedir número del dueño
 echo ""
 echo "===================================="
 echo "📱 CONFIGURACIÓN INICIAL"
 echo "===================================="
 echo ""
-echo "Ahora necesito saber: ¿CUÁL ES TU NÚMERO DE WHATSAPP?"
-echo "(El que va a dar instrucciones al bot)"
-echo ""
-echo "Ejemplo: 5215512345678 (52 es México, 1 es LADA, 55 es número)"
-echo "Escribe tu número y presiona Enter:"
+echo "Ingresa tu número de WhatsApp (dueño):"
+echo "Ejemplo: 5215512345678"
 read NUMERO_DUENO
 
+# 7. Guardar configuración
+echo "[6/8] Guardando configuración..."
+echo '{"dueno":"'$NUMERO_DUENO'","familiares":{},"menu":{"desayunos":[],"comida":[]}}' > config.json
+
+# 8. Crear archivo de inicio automático
+echo "[7/8] Preparando inicio automático..."
+echo "node bot.js" > iniciar.sh
+chmod +x iniciar.sh
+
+# 9. Mensaje final y limpieza
+clear
+echo "===================================="
+echo "✅ INSTALACIÓN COMPLETADA"
+echo "===================================="
 echo ""
-echo "Guardando tu número..."
-cat > config.json << EOF
-{
-  "dueno": "$NUMERO_DUENO",
-  "familiares": {},
-  "menu": {
-    "desayunos": [],
-    "comida": []
+echo "AHORA SE GENERARÁ EL CÓDIGO DE EMPAREJAMIENTO"
+echo ""
+
+# 10. INICIAR EL BOT Y MOSTRAR CÓDIGO
+echo "Iniciando bot..."
+sleep 2
+
+node -e "
+const { default: makeWASocket, useMultiFileAuthState } = require('@whiskeysockets/baileys');
+const fs = require('fs');
+
+async function iniciar() {
+  try {
+    // Leer configuración
+    const config = JSON.parse(fs.readFileSync('./config.json'));
+    const numeroDueno = config.dueno;
+    
+    console.log('====================================');
+    console.log('📱 CÓDIGO DE EMPAREJAMIENTO');
+    console.log('====================================');
+    console.log('');
+    console.log('1. Abre WhatsApp en tu teléfono');
+    console.log('2. Ve a Ajustes > Dispositivos vinculados');
+    console.log('3. Toca \"Vincular con número de teléfono\"');
+    console.log('4. Cuando te pida el código, ESCRIBE ESTO:');
+    console.log('');
+    console.log('⚡⚡⚡ ' + numeroDueno + ' ⚡⚡⚡');
+    console.log('');
+    console.log('(Sí, el código es tu propio número)');
+    console.log('====================================');
+    console.log('');
+    
+    // Configurar autenticación
+    const { state, saveCreds } = await useMultiFileAuthState('auth_info');
+    
+    const sock = makeWASocket({
+      auth: state,
+      printQRInTerminal: false,
+      browser: ['Termux', 'Chrome', '20.0'],
+      syncFullHistory: false
+    });
+    
+    // Esperar conexión exitosa
+    sock.ev.on('connection.update', (update) => {
+      const { connection } = update;
+      
+      if (connection === 'open') {
+        console.log('');
+        console.log('====================================');
+        console.log('✅ BOT CONECTADO EXITOSAMENTE');
+        console.log('====================================');
+        console.log('');
+        console.log('Dueño configurado: ' + numeroDueno);
+        console.log('');
+        console.log('Ya puedes enviarle mensajes de voz a este bot');
+        console.log('desde tu número para darle instrucciones.');
+        console.log('');
+        console.log('El bot seguirá funcionando hasta que cierres Termux');
+        console.log('Para salir: Ctrl+C');
+        console.log('====================================');
+      }
+    });
+    
+    sock.ev.on('creds.update', saveCreds);
+    
+  } catch (error) {
+    console.log('Error:', error.message);
   }
 }
-EOF
 
-echo ""
-echo "===================================="
-echo "🎉 ¡INSTALACIÓN COMPLETADA!"
-echo "===================================="
-echo ""
-echo "Ahora viene la parte más importante:"
-echo ""
-echo "1. Ejecuta este comando para iniciar el bot:"
-echo "   node bot.js"
-echo ""
-echo "2. El bot te va a mostrar un CÓDIGO de 8 dígitos"
-echo ""
-echo "3. Abre WhatsApp > Ajustes > Dispositivos vinculados"
-echo "   > 'Vincular con número de teléfono'"
-echo ""
-echo "4. Escribe el código que apareció en Termux"
-echo ""
-echo "5. ¡LISTO! El bot ya está conectado"
-echo ""
-echo "A partir de ahora puedes darle instrucciones por voz"
-echo "desde tu número: $NUMERO_DUENO"
+iniciar();
+"
