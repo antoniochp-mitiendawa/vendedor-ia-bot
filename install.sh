@@ -14,16 +14,16 @@ pkg update -y && pkg upgrade -y
 echo "[2/8] Instalando Node.js, Python y herramientas..."
 pkg install -y nodejs python git ffmpeg wget
 
-# 3. Limpiar caché de npm (para evitar errores)
+# 3. Limpiar caché de npm
 echo "[3/8] Limpiando caché de npm..."
 npm cache clean --force
 
-# 4. Instalar dependencias de Node.js (FORZADO)
+# 4. Instalar dependencias de Node.js
 echo "[4/8] Instalando Baileys y librerías..."
 npm install -g npm@latest
 npm install @whiskeysockets/baileys@6.7.0 qrcode-terminal @xenova/transformers --force
 
-# 5. Verificar que Baileys se instaló
+# 5. Verificar instalación de Baileys
 echo "[5/8] Verificando instalación..."
 if [ -d "node_modules/@whiskeysockets/baileys" ]; then
     echo "✅ Baileys instalado correctamente"
@@ -32,43 +32,48 @@ else
     npm install @whiskeysockets/baileys@6.7.0 --force
 fi
 
-# 6. Instalar Whisper (para voz)
-echo "[6/8] Instalando Whisper (reconocimiento de voz)..."
+# 6. Instalar Whisper
+echo "[6/8] Instalando Whisper..."
 pip install openai-whisper
 
-# 7. Descargar Gemma 3 (IA local)
+# 7. Descargar Gemma 3
 echo "[7/8] Descargando inteligencia artificial Gemma 3..."
 wget -O gemma-3-1b-it-Q4_0.gguf https://huggingface.co/google/gemma-3-1b-it-quantized/resolve/main/gemma-3-1b-it-Q4_0.gguf
 
-# 8. Pedir número del dueño
-echo ""
+# 8. PEDIR LOS DOS NÚMEROS
+clear
 echo "===================================="
-echo "📱 CONFIGURACIÓN INICIAL"
+echo "📱 CONFIGURACIÓN DE NÚMEROS"
 echo "===================================="
 echo ""
-echo "Ingresa tu número de WhatsApp (dueño):"
-echo "Ejemplo: 5215512345678"
-read NUMERO_DUENO
+echo "Vamos a necesitar DOS números diferentes:"
+echo ""
+echo "1️⃣  Número del DUEÑO (el que dará instrucciones al bot)"
+echo "   Ejemplo: 5215512345678"
+echo ""
+read -p "➤ Número del DUEÑO: " NUMERO_DUENO
+echo ""
+echo "2️⃣  Número del BOT (el que va a contestar a los clientes)"
+echo "   Ejemplo: 5215512345679"
+echo ""
+read -p "➤ Número del BOT: " NUMERO_BOT
+echo ""
 
 # 9. Guardar configuración
 echo "[8/8] Guardando configuración..."
-echo '{"dueno":"'$NUMERO_DUENO'","familiares":{},"menu":{"desayunos":[],"comida":[]}}' > config.json
+echo '{"dueno":"'$NUMERO_DUENO'","bot":"'$NUMERO_BOT'","familiares":{},"menu":{"desayunos":[],"comida":[]}}' > config.json
 
-# 10. Crear archivo de prueba de Baileys
-echo "const test = require('@whiskeysockets/baileys'); console.log('✅ Baileys cargado correctamente');" > test.js
-node test.js
-rm test.js
-
-# 11. Mensaje final
+# 10. Mensaje final
 clear
 echo "===================================="
 echo "✅ INSTALACIÓN COMPLETADA"
 echo "===================================="
 echo ""
 echo "AHORA SE GENERARÁ EL CÓDIGO DE EMPAREJAMIENTO"
+echo "PARA EL NÚMERO DEL BOT: $NUMERO_BOT"
 echo ""
 
-# 12. INICIAR EL BOT Y MOSTRAR CÓDIGO
+# 11. INICIAR BOT Y GENERAR CÓDIGO CON EL NÚMERO DEL BOT
 echo "Iniciando bot..."
 sleep 2
 
@@ -80,21 +85,19 @@ async function iniciar() {
   try {
     // Leer configuración
     const config = JSON.parse(fs.readFileSync('./config.json'));
+    const numeroBot = config.bot;      // 👈 ESTE es el número que se usa para el pairing
     const numeroDueno = config.dueno;
     
     console.log('====================================');
     console.log('📱 CÓDIGO DE EMPAREJAMIENTO');
     console.log('====================================');
     console.log('');
+    console.log('Número del BOT: ' + numeroBot);
+    console.log('');
     console.log('1. Abre WhatsApp en tu teléfono');
     console.log('2. Ve a Ajustes > Dispositivos vinculados');
     console.log('3. Toca \"Vincular con número de teléfono\"');
-    console.log('4. Cuando te pida el código, ESCRIBE ESTO:');
-    console.log('');
-    console.log('⚡⚡⚡ ' + numeroDueno + ' ⚡⚡⚡');
-    console.log('');
-    console.log('(Sí, el código es tu propio número)');
-    console.log('====================================');
+    console.log('4. Cuando te pida el código, espera...');
     console.log('');
     
     // Configurar autenticación
@@ -107,6 +110,24 @@ async function iniciar() {
       syncFullHistory: false
     });
     
+    // SOLICITAR CÓDIGO DE EMPAREJAMIENTO con el número del BOT
+    if (!sock.authState.creds.registered) {
+      console.log('🔄 Solicitando código de emparejamiento...');
+      console.log('');
+      
+      // Esta línea es la que genera el código con el número del BOT
+      const pairingCode = await sock.requestPairingCode(numeroBot);
+      
+      // Mostrar el código en formato legible (con guiones cada 4 dígitos)
+      const codigoFormateado = pairingCode.match(/.{1,4}/g)?.join('-') || pairingCode;
+      
+      console.log('⚡⚡⚡ CÓDIGO: ' + codigoFormateado + ' ⚡⚡⚡');
+      console.log('');
+      console.log('====================================');
+      console.log('ESCRIBE ESE CÓDIGO EN WHATSAPP');
+      console.log('====================================');
+    }
+    
     // Esperar conexión exitosa
     sock.ev.on('connection.update', (update) => {
       const { connection } = update;
@@ -118,9 +139,10 @@ async function iniciar() {
         console.log('====================================');
         console.log('');
         console.log('Dueño configurado: ' + numeroDueno);
+        console.log('Bot conectado con: ' + numeroBot);
         console.log('');
-        console.log('Ya puedes enviarle mensajes de voz a este bot');
-        console.log('desde tu número para darle instrucciones.');
+        console.log('Ya puedes enviarle mensajes de voz al bot');
+        console.log('desde tu número (' + numeroDueno + ') para darle instrucciones.');
         console.log('');
         console.log('El bot seguirá funcionando hasta que cierres Termux');
         console.log('Para salir: Ctrl+C');
@@ -133,14 +155,7 @@ async function iniciar() {
   } catch (error) {
     console.log('Error:', error.message);
     console.log('');
-    console.log('====================================');
-    console.log('⚠️  ERROR: No se pudo cargar Baileys');
-    console.log('====================================');
-    console.log('');
-    console.log('Ejecuta estos comandos manualmente:');
-    console.log('1. npm install @whiskeysockets/baileys@6.7.0 --force');
-    console.log('2. node -e \"require(\\'@whiskeysockets/baileys\\')\"');
-    console.log('3. node bot.js');
+    console.log('Si el error es de conexión, espera 10 segundos y el bot reintentará automáticamente.');
   }
 }
 
