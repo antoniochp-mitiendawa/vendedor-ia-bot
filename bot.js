@@ -1,6 +1,9 @@
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, Browsers } = require('@whiskeysockets/baileys');
 const { Boom } = require('@hapi/boom');
 const fs = require('fs');
+const readline = require('readline');
+const pino = require('pino');
+const path = require('path');
 
 // Cargar configuración
 let config = { dueno: "", bot: "", familiares: {}, menu: { desayunos: [], comida: [] } };
@@ -11,6 +14,7 @@ try {
     console.log(`   Bot: ${config.bot}`);
 } catch (error) {
     console.log('❌ Error: No se pudo cargar config.json');
+    console.log('Ejecuta primero: bash install.sh');
     process.exit(1);
 }
 
@@ -21,64 +25,67 @@ let sock = null;
 let codigoGenerado = false;
 let reconectando = false;
 
-// Variables para Vosk
-let voskDisponible = false;
-let voskModel = null;
-
-// Intentar cargar Vosk
-try {
-    const vosk = require('vosk');
-    const MODEL_PATH = './vosk-model-small-es-0.42';
-    
-    if (fs.existsSync(MODEL_PATH)) {
-        vosk.setLogLevel(-1);
-        voskModel = new vosk.Model(MODEL_PATH);
-        voskDisponible = true;
-        console.log('🎤 Vosk: Modelo de voz cargado correctamente');
-    } else {
-        console.log('🎤 Vosk: Modelo no encontrado en ' + MODEL_PATH);
-    }
-} catch (error) {
-    console.log('🎤 Vosk: No disponible -', error.message);
-}
-
 function log(mensaje) {
     const fecha = new Date().toLocaleTimeString();
     console.log(`[${fecha}] ${mensaje}`);
 }
 
-function formatearCodigo(codigo) {
-    if (!codigo) return '';
-    return codigo.match(/.{1,4}/g)?.join('-') || codigo;
+// Función para pedir número (igual que en el proyecto que funciona)
+function pedirNumeroSilencioso() {
+    return new Promise((resolve) => {
+        const rl = readline.createInterface({
+            input: process.stdin,
+            output: process.stdout
+        });
+        rl.question('📱 Introduce tu número (sin +): ', (numero) => {
+            rl.close();
+            resolve(numero.trim());
+        });
+    });
 }
 
 async function iniciarBot() {
     try {
         log('Iniciando conexión con WhatsApp...');
         
+        const { version, isLatest } = await fetchLatestBaileysVersion();
+        const logger = pino({ level: 'silent' });
         const { state, saveCreds } = await useMultiFileAuthState('auth_info');
         
+        const existeSesion = fs.existsSync(path.join('auth_info', 'creds.json'));
+        
+        let browserConfig;
+        if (!existeSesion) {
+            browserConfig = ["Ubuntu", "Chrome", "20.0.04"];
+            log('🌐 Primera configuración');
+        } else {
+            browserConfig = Browsers.macOS("Desktop");
+            log('🌐 Usando sesión existente');
+        }
+
         sock = makeWASocket({
+            version,
             auth: state,
+            logger: logger,
             printQRInTerminal: false,
-            browser: ['Termux', 'Chrome', '20.0'],
+            browser: browserConfig,
             syncFullHistory: false,
             markOnlineOnConnect: true,
-            keepAliveIntervalMs: 60000
+            keepAliveIntervalMs: 30000
         });
 
+        // Si no hay sesión, pedir número y generar código
         if (!sock.authState.creds.registered && !codigoGenerado && !reconectando) {
             console.log('\n====================================');
-            console.log('📱 CONFIGURACIÓN INICIAL DEL BOT');
+            console.log('📱 PRIMERA CONFIGURACIÓN');
             console.log('====================================\n');
             
-            log(`Preparando código para: ${numeroBot}`);
+            log('Solicitando código de emparejamiento...');
             
             setTimeout(async () => {
                 try {
-                    log('Solicitando código de emparejamiento...');
                     const codigo = await sock.requestPairingCode(numeroBot);
-                    const codigoFormateado = formatearCodigo(codigo);
+                    const codigoFormateado = codigo.match(/.{1,4}/g)?.join('-') || codigo;
                     
                     codigoGenerado = true;
                     
@@ -94,7 +101,7 @@ async function iniciarBot() {
                     console.log('1. Abre WhatsApp en tu teléfono');
                     console.log('2. Ve a Ajustes > Dispositivos vinculados');
                     console.log('3. Toca "Vincular con número de teléfono"');
-                    console.log('4. ESCRIBE EL CÓDIGO: ' + codigoFormateado);
+                    console.log('4. ESCRIBE: ' + codigoFormateado);
                     console.log('');
                     console.log('⏳ El bot está esperando que vincules...');
                     console.log('⚠️  NO CIERRES ESTA VENTANA');
@@ -107,9 +114,10 @@ async function iniciarBot() {
             }, 2000);
         }
 
-        sock.ev.on('connection.update', (update) => {
+        // Manejar eventos de conexión
+        sock.ev.on('connection.update', async (update) => {
             const { connection, lastDisconnect } = update;
-            
+
             if (connection === 'open') {
                 reconectando = false;
                 console.log('\n====================================');
@@ -117,18 +125,19 @@ async function iniciarBot() {
                 console.log('====================================\n');
                 log('Dueño: ' + config.dueno);
                 log('Bot: ' + numeroBot);
-                if (voskDisponible) console.log('🎤 Vosk: ACTIVADO');
                 console.log('');
             }
-            
+
             if (connection === 'close') {
                 const statusCode = lastDisconnect?.error instanceof Boom ? lastDisconnect.error.output.statusCode : 500;
-                if (statusCode !== DisconnectReason.loggedOut) {
+                const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+                
+                if (shouldReconnect) {
                     reconectando = true;
-                    log('❌ Conexión perdida. Reconectando...');
+                    log('❌ Conexión cerrada. Reconectando en 5 segundos...');
                     setTimeout(iniciarBot, 5000);
                 } else {
-                    log('🚫 Sesión cerrada. Eliminando credenciales...');
+                    log('🚫 Sesión cerrada. Se necesita nuevo código.');
                     try {
                         fs.rmSync('auth_info', { recursive: true, force: true });
                     } catch (e) {}
@@ -140,39 +149,50 @@ async function iniciarBot() {
 
         sock.ev.on('creds.update', saveCreds);
 
+        // Escuchar mensajes
         sock.ev.on('messages.upsert', async ({ messages }) => {
             const msg = messages[0];
             
-            if (!msg.message || msg.key.fromMe) return;
-            
-            const numero = msg.key.remoteJid;
-            if (numero.includes('@g.us')) return;
-            
+            if (!msg.key || msg.key.fromMe || !msg.message) {
+                return;
+            }
+
+            const remitente = msg.key.remoteJid;
+
+            // Ignorar grupos
+            if (remitente && remitente.includes('@g.us')) {
+                return;
+            }
+
             const texto = msg.message.conversation || 
                          msg.message.extendedTextMessage?.text || '';
-            const numeroLimpio = numero.split('@')[0];
-            
-            // Familiares
+
+            const numeroLimpio = remitente.split('@')[0];
+
+            // Verificar familiares
             if (config.familiares && config.familiares[numeroLimpio]) {
                 const palabrasClave = ['menu', 'desayuno', 'comida', 'que hay', 'precios'];
-                if (!palabrasClave.some(p => texto.toLowerCase().includes(p))) {
+                const contienePalabraClave = palabrasClave.some(p => 
+                    texto.toLowerCase().includes(p)
+                );
+                if (!contienePalabraClave) {
                     log('👨‍👩‍👧 Familiar ignorado: ' + numeroLimpio);
                     return;
                 }
             }
-            
+
             // Dueño
             if (numeroLimpio === config.dueno) {
-                log('📝 INSTRUCCIÓN DEL DUEÑO: ' + texto);
-                await sock.sendPresenceUpdate('composing', numero);
+                log('📝 DUEÑO: ' + texto);
+                await sock.sendPresenceUpdate('composing', remitente);
                 setTimeout(async () => {
-                    await sock.sendMessage(numero, { text: '✅ Instrucción recibida' });
+                    await sock.sendMessage(remitente, { text: '✅ Instrucción recibida' });
                 }, 2000);
             }
             // Cliente
             else {
-                log('💬 CLIENTE: ' + texto + ' - ' + numeroLimpio);
-                await sock.sendPresenceUpdate('composing', numero);
+                log('💬 CLIENTE: ' + texto);
+                await sock.sendPresenceUpdate('composing', remitente);
                 
                 const delay = Math.floor(Math.random() * 4000) + 1000;
                 
@@ -181,18 +201,20 @@ async function iniciarBot() {
                     
                     if (texto.toLowerCase().includes('hola') || texto.toLowerCase().includes('buenos')) {
                         respuesta = '¡Buenos días! 🌞 Soy el asistente.\n\n' +
-                                  '🍳 *Desayunos:* Huevos divorciados 🌶️, Chilaquiles 🫑\n' +
+                                  '🍳 *Desayunos:*\n' +
+                                  '• Huevos divorciados 🌶️ - $85\n' +
+                                  '• Chilaquiles 🫑 - $90\n' +
                                   '☕ *Incluyen:* fruta, jugo y café\n\n' +
                                   '¿Qué se le antoja? 😋';
                     } else if (texto.toLowerCase().includes('precio')) {
-                        respuesta = '💰 *Precios:*\nDesayunos: $85\nComida: $120';
-                    } else if (texto.toLowerCase().includes('gracias')) {
-                        respuesta = '¡A ti por preferirnos! 🙏';
+                        respuesta = '💰 *Precios:*\n\n' +
+                                  'Desayunos: $85 - $90\n' +
+                                  'Comida corrida: $120';
                     } else {
-                        respuesta = '¿En qué puedo ayudarte?';
+                        respuesta = '¿En qué puedo ayudarte? Puedes preguntar por el menú o precios.';
                     }
                     
-                    await sock.sendMessage(numero, { text: respuesta });
+                    await sock.sendMessage(remitente, { text: respuesta });
                 }, delay);
             }
         });
@@ -204,8 +226,10 @@ async function iniciarBot() {
 }
 
 process.on('SIGINT', () => {
-    console.log('\n👋 Cerrando bot...');
-    if (sock) sock.end();
+    console.log('\n\n👋 Cerrando bot...');
+    if (sock) {
+        sock.end();
+    }
     process.exit(0);
 });
 
