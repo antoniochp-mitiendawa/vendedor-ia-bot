@@ -1,7 +1,6 @@
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
 const { Boom } = require('@hapi/boom');
 const fs = require('fs');
-const path = require('path');
 
 // Cargar configuración
 let config = { dueno: "", bot: "", familiares: {}, menu: { desayunos: [], comida: [] } };
@@ -26,7 +25,7 @@ let reconectando = false;
 let voskDisponible = false;
 let voskModel = null;
 
-// Intentar cargar Vosk si existe
+// Intentar cargar Vosk
 try {
     const vosk = require('vosk');
     const MODEL_PATH = './vosk-model-small-es-0.42';
@@ -38,7 +37,7 @@ try {
         console.log('🎤 Vosk: Modelo de voz cargado correctamente');
     }
 } catch (error) {
-    console.log('🎤 Vosk: No disponible (funciones de voz limitadas)');
+    console.log('🎤 Vosk: No disponible');
 }
 
 function log(mensaje) {
@@ -144,7 +143,7 @@ async function iniciarBot() {
                          msg.message.extendedTextMessage?.text || '';
             const numeroLimpio = numero.split('@')[0];
             
-            // Verificar familiares
+            // Familiares
             if (config.familiares && config.familiares[numeroLimpio]) {
                 const palabrasClave = ['menu', 'desayuno', 'comida'];
                 if (!palabrasClave.some(p => texto.toLowerCase().includes(p))) {
@@ -152,7 +151,7 @@ async function iniciarBot() {
                 }
             }
             
-            // Si es el dueño
+            // Dueño
             if (numeroLimpio === config.dueno) {
                 log('📝 Dueño: ' + texto);
                 await sock.sendPresenceUpdate('composing', numero);
