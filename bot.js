@@ -1,7 +1,10 @@
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
 const { Boom } = require('@hapi/boom');
 const fs = require('fs');
-const readline = require('readline');
+const path = require('path');
+const fsPromises = fs.promises;
+const vosk = require('vosk');
+const wav = require('wav');
 
 // Cargar configuración
 let config = { dueno: "", bot: "", familiares: {}, menu: { desayunos: [], comida: [] } };
@@ -23,6 +26,23 @@ let sock = null;
 let codigoGenerado = false;
 let reconectando = false;
 
+// Inicializar Vosk (si está instalado)
+let voskModel = null;
+let voskDisponible = false;
+try {
+    const MODEL_PATH = './vosk-model-small-es-0.42';
+    if (fs.existsSync(MODEL_PATH)) {
+        vosk.setLogLevel(-1); // Silenciar logs de Vosk
+        voskModel = new vosk.Model(MODEL_PATH);
+        voskDisponible = true;
+        console.log('🎤 Vosk: Modelo de voz cargado correctamente');
+    } else {
+        console.log('🎤 Vosk: Modelo no encontrado (funciones de voz limitadas)');
+    }
+} catch (error) {
+    console.log('🎤 Vosk: Error al cargar modelo:', error.message);
+}
+
 function log(mensaje) {
     const fecha = new Date().toLocaleTimeString();
     console.log(`[${fecha}] ${mensaje}`);
@@ -31,6 +51,60 @@ function log(mensaje) {
 function formatearCodigo(codigo) {
     if (!codigo) return '';
     return codigo.match(/.{1,4}/g)?.join('-') || codigo;
+}
+
+// NUEVA FUNCIÓN: Procesar audio de WhatsApp con Vosk
+async function procesarAudioConVosk(audioPath) {
+    if (!voskDisponible) {
+        return { error: 'Vosk no disponible' };
+    }
+    
+    return new Promise((resolve, reject) => {
+        try {
+            if (!fs.existsSync(audioPath)) {
+                return resolve({ error: 'Archivo de audio no encontrado' });
+            }
+
+            const wfReader = new wav.Reader();
+            const rec = new vosk.Recognizer({ model: voskModel, sampleRate: 16000 });
+            let resultadoFinal = '';
+
+            wfReader.on('format', ({ audioFormat, sampleRate, channels }) => {
+                if (audioFormat !== 1 || channels !== 1) {
+                    reject(new Error('El audio debe ser mono PCM 16kHz'));
+                    return;
+                }
+            });
+
+            wfReader.on('data', (data) => {
+                if (rec.acceptWaveform(data)) {
+                    const res = rec.result();
+                    if (res.text) {
+                        resultadoFinal += ' ' + res.text;
+                    }
+                }
+            });
+
+            wfReader.on('end', () => {
+                const res = rec.finalResult();
+                if (res.text) {
+                    resultadoFinal += ' ' + res.text;
+                }
+                rec.free();
+                resolve({ texto: resultadoFinal.trim() });
+            });
+
+            wfReader.on('error', (err) => {
+                rec.free();
+                reject(err);
+            });
+
+            fs.createReadStream(audioPath).pipe(wfReader);
+            
+        } catch (error) {
+            reject(error);
+        }
+    });
 }
 
 async function iniciarBot() {
@@ -45,7 +119,7 @@ async function iniciarBot() {
             browser: ['Termux', 'Chrome', '20.0'],
             syncFullHistory: false,
             markOnlineOnConnect: true,
-            keepAliveIntervalMs: 60000 // CORREGIDO: aumentado a 60 segundos
+            keepAliveIntervalMs: 60000
         });
 
         if (!sock.authState.creds.registered && !codigoGenerado && !reconectando) {
@@ -103,7 +177,13 @@ async function iniciarBot() {
                 console.log('====================================\n');
                 log('Dueño configurado: ' + config.dueno);
                 log('Bot conectado: ' + numeroBot);
-                console.log('\n📝 El bot ya está listo para recibir instrucciones\n');
+                console.log('\n📝 El bot ya está listo para recibir instrucciones');
+                if (voskDisponible) {
+                    console.log('🎤 Instrucciones por voz: ACTIVADAS (Vosk)');
+                } else {
+                    console.log('🎤 Instrucciones por voz: NO DISPONIBLES');
+                }
+                console.log('');
             }
             
             if (connection === 'close') {
@@ -127,6 +207,7 @@ async function iniciarBot() {
 
         sock.ev.on('creds.update', saveCreds);
 
+        // Escuchar mensajes - NUEVO: Soporte para audio
         sock.ev.on('messages.upsert', async ({ messages }) => {
             const msg = messages[0];
             
@@ -140,14 +221,16 @@ async function iniciarBot() {
                 return;
             }
 
+            // Obtener texto del mensaje (puede ser conversación, texto extendido, o caption)
             const texto = msg.message.conversation || 
                          msg.message.extendedTextMessage?.text || 
-                         msg.message.imageMessage?.caption || '';
+                         msg.message.imageMessage?.caption || 
+                         msg.message.videoMessage?.caption || '';
 
-            if (!texto || texto.trim() === '') {
-                return;
-            }
-
+            // Verificar si es un mensaje de audio
+            const audioMsg = msg.message.audioMessage;
+            
+            // Limpiar número para comparación
             const numeroLimpio = numero.split('@')[0];
             
             // Verificar familiares
@@ -157,20 +240,66 @@ async function iniciarBot() {
                     texto.toLowerCase().includes(palabra)
                 );
                 
-                if (!contienePalabraClave) {
+                if (!contienePalabraClave && !audioMsg) {
                     log('👨‍👩‍👧 Familiar ignorado: ' + numeroLimpio);
                     return;
                 }
             }
             
+            // Si es el dueño
             if (numeroLimpio === config.dueno) {
-                log('📝 INSTRUCCIÓN DEL DUEÑO: ' + texto);
-                await sock.sendPresenceUpdate('composing', numero);
-                setTimeout(async () => {
-                    await sock.sendMessage(numero, { text: '✅ Instrucción recibida' });
-                }, 2000);
+                // SI ES UN AUDIO (instrucción por voz)
+                if (audioMsg && voskDisponible) {
+                    log('🎤 Recibiendo instrucción de voz del dueño...');
+                    
+                    // Mostrar typing mientras procesa
+                    await sock.sendPresenceUpdate('composing', numero);
+                    
+                    try {
+                        // Descargar el audio
+                        const buffer = await sock.downloadMediaMessage(msg);
+                        const audioPath = path.join('/sdcard/Download', `audio_${Date.now()}.wav`);
+                        fs.writeFileSync(audioPath, buffer);
+                        
+                        // Procesar con Vosk
+                        const resultado = await procesarAudioConVosk(audioPath);
+                        
+                        // Limpiar archivo temporal
+                        try { fs.unlinkSync(audioPath); } catch (e) {}
+                        
+                        if (resultado.texto) {
+                            log('📝 Transcripción: ' + resultado.texto);
+                            await sock.sendMessage(numero, { 
+                                text: '✅ Instrucción recibida: "' + resultado.texto + '"' 
+                            });
+                            
+                            // Aquí se procesará la instrucción (actualizar menú, etc.)
+                            // Por ahora solo confirmamos
+                            
+                        } else {
+                            await sock.sendMessage(numero, { 
+                                text: '❌ No pude entender el audio. ¿Puedes repetirlo?' 
+                            });
+                        }
+                        
+                    } catch (error) {
+                        log('❌ Error procesando audio: ' + error.message);
+                        await sock.sendMessage(numero, { 
+                            text: '❌ Error procesando el audio. Intenta de nuevo.' 
+                        });
+                    }
+                }
+                // SI ES TEXTO
+                else {
+                    log('📝 INSTRUCCIÓN DEL DUEÑO (texto): ' + texto);
+                    await sock.sendPresenceUpdate('composing', numero);
+                    setTimeout(async () => {
+                        await sock.sendMessage(numero, { text: '✅ Instrucción recibida' });
+                    }, 2000);
+                }
             }
             else {
+                // Es un cliente - responder como siempre
                 log('💬 CLIENTE: ' + texto + ' - ' + numeroLimpio);
                 await sock.sendPresenceUpdate('composing', numero);
                 
@@ -229,6 +358,9 @@ async function iniciarBot() {
 
 process.on('SIGINT', () => {
     console.log('\n\n👋 Cerrando bot...');
+    if (voskModel) {
+        voskModel.free();
+    }
     if (sock) {
         sock.end();
     }
