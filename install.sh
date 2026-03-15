@@ -77,7 +77,7 @@ else
 fi
 echo ""
 
-# INSTALAR DEPENDENCIAS NODE.JS (PRIMERO BAILEYS SOLO)
+# INSTALAR DEPENDENCIAS NODE.JS (PRIMERO BAILEYS)
 echo -e "${AMARILLO}[5/8] Instalando dependencias Node.js...${RESET}"
 npm install @whiskeysockets/baileys@6.7.0 qrcode-terminal @hapi/boom
 if [ -d "node_modules/@whiskeysockets/baileys" ]; then
@@ -88,13 +88,13 @@ else
 fi
 echo ""
 
-# VERIFICAR VOSK (INSTALAR POR SEPARADO)
+# VERIFICAR VOSK (VERSIÓN 0.3.45 - LA QUE SÍ EXISTE)
 echo -e "${AMARILLO}[6/8] Verificando Vosk...${RESET}"
 
-# Instalar módulo Vosk (versión 0.3.42 - SÍ EXISTE)
+# Instalar módulo Vosk
 if [ ! -d "node_modules/vosk" ]; then
     echo -e "${AMARILLO}   ⚠️ Instalando módulo Vosk...${RESET}"
-    npm install vosk@0.3.42
+    npm install vosk@0.3.45
 fi
 
 # Descargar modelo español pequeño
@@ -114,24 +114,25 @@ else
 fi
 echo ""
 
-# VERIFICAR MODELO IA (TinyLlama - URL CORREGIDA)
+# VERIFICAR MODELO IA (USANDO EL QUE YA TIENES)
 echo -e "${AMARILLO}[7/8] Verificando modelo IA...${RESET}"
-if [ ! -f "modelo.gguf" ]; then
-    echo -e "${AMARILLO}   ⚠️ Descargando modelo (670MB)...${RESET}"
+if [ -f "modelo.gguf" ]; then
+    MODELO_OK=1
+    echo -e "${VERDE}   ✅ Modelo IA ya existe${RESET}"
+else
+    echo -e "${AMARILLO}   ⚠️ Modelo no encontrado, descargando (350MB)...${RESET}"
     wget -O modelo.gguf https://huggingface.co/TheBloke/TinyLlama-1.1B-GGUF/resolve/main/tinyllama-1.1b.Q4_K_M.gguf
     if [ $? -eq 0 ]; then
         MODELO_OK=1
         echo -e "${VERDE}   ✅ Modelo descargado${RESET}"
     else
         echo -e "${ROJO}   ❌ Error descargando modelo${RESET}"
+        echo -e "${AMARILLO}   ⚠️ Continuando sin IA local${RESET}"
     fi
-else
-    MODELO_OK=1
-    echo -e "${VERDE}   ✅ Modelo ya existe${RESET}"
 fi
 echo ""
 
-# VERIFICAR sesión WhatsApp
+# VERIFICAR sesión de WhatsApp
 echo -e "${AMARILLO}[8/8] Verificando sesión de WhatsApp...${RESET}"
 if [ -d "auth_info" ] && [ -f "auth_info/creds.json" ]; then
     if [ -s "auth_info/creds.json" ]; then
@@ -166,11 +167,11 @@ echo ""
 if [ ! -f "config.json" ]; then
     echo -e "${AMARILLO}📱 CONFIGURACIÓN INICIAL DE NÚMEROS${RESET}"
     echo ""
-    echo "Ingresa el número del DUEÑO:"
+    echo "Ingresa el número del DUEÑO (el que dará instrucciones):"
     echo "Ejemplo: 5215512345678"
     read -p "➤ " NUMERO_DUENO
     echo ""
-    echo "Ingresa el número del BOT:"
+    echo "Ingresa el número del BOT (el que contestará a clientes):"
     echo "Ejemplo: 5215512345679"
     read -p "➤ " NUMERO_BOT
     echo ""
