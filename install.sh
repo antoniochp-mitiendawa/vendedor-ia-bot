@@ -73,7 +73,7 @@ echo "AHORA SE GENERARÁ EL CÓDIGO DE EMPAREJAMIENTO"
 echo "PARA EL NÚMERO DEL BOT: $NUMERO_BOT"
 echo ""
 
-# 11. INICIAR BOT Y GENERAR CÓDIGO CON EL NÚMERO DEL BOT
+# 11. INICIAR BOT Y GENERAR CÓDIGO
 echo "Iniciando bot..."
 sleep 2
 
@@ -83,9 +83,8 @@ const fs = require('fs');
 
 async function iniciar() {
   try {
-    // Leer configuración
     const config = JSON.parse(fs.readFileSync('./config.json'));
-    const numeroBot = config.bot;      // 👈 ESTE es el número que se usa para el pairing
+    const numeroBot = config.bot;
     const numeroDueno = config.dueno;
     
     console.log('====================================');
@@ -94,13 +93,7 @@ async function iniciar() {
     console.log('');
     console.log('Número del BOT: ' + numeroBot);
     console.log('');
-    console.log('1. Abre WhatsApp en tu teléfono');
-    console.log('2. Ve a Ajustes > Dispositivos vinculados');
-    console.log('3. Toca \"Vincular con número de teléfono\"');
-    console.log('4. Cuando te pida el código, espera...');
-    console.log('');
     
-    // Configurar autenticación
     const { state, saveCreds } = await useMultiFileAuthState('auth_info');
     
     const sock = makeWASocket({
@@ -110,21 +103,30 @@ async function iniciar() {
       syncFullHistory: false
     });
     
-    // SOLICITAR CÓDIGO DE EMPAREJAMIENTO con el número del BOT
+    // SOLICITAR CÓDIGO DE EMPAREJAMIENTO
     if (!sock.authState.creds.registered) {
-      console.log('🔄 Solicitando código de emparejamiento...');
+      console.log('🔄 Generando código de emparejamiento...');
       console.log('');
       
-      // Esta línea es la que genera el código con el número del BOT
       const pairingCode = await sock.requestPairingCode(numeroBot);
-      
-      // Mostrar el código en formato legible (con guiones cada 4 dígitos)
       const codigoFormateado = pairingCode.match(/.{1,4}/g)?.join('-') || pairingCode;
       
-      console.log('⚡⚡⚡ CÓDIGO: ' + codigoFormateado + ' ⚡⚡⚡');
+      console.log('⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡');
+      console.log('⚡                                      ⚡');
+      console.log('⚡   CÓDIGO: ' + codigoFormateado + '   ⚡');
+      console.log('⚡                                      ⚡');
+      console.log('⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡');
       console.log('');
       console.log('====================================');
-      console.log('ESCRIBE ESE CÓDIGO EN WHATSAPP');
+      console.log('INSTRUCCIONES:');
+      console.log('====================================');
+      console.log('1. Abre WhatsApp en tu teléfono');
+      console.log('2. Ve a Ajustes > Dispositivos vinculados');
+      console.log('3. Toca \"Vincular con número de teléfono\"');
+      console.log('4. Cuando te pida el código, ESCRIBE: ' + pairingCode);
+      console.log('');
+      console.log('⚠️  NO CIERRES ESTA VENTANA');
+      console.log('⚠️  El bot está esperando que vincules...');
       console.log('====================================');
     }
     
@@ -138,14 +140,11 @@ async function iniciar() {
         console.log('✅ BOT CONECTADO EXITOSAMENTE');
         console.log('====================================');
         console.log('');
-        console.log('Dueño configurado: ' + numeroDueno);
-        console.log('Bot conectado con: ' + numeroBot);
+        console.log('Dueño: ' + numeroDueno);
+        console.log('Bot: ' + numeroBot);
         console.log('');
-        console.log('Ya puedes enviarle mensajes de voz al bot');
-        console.log('desde tu número (' + numeroDueno + ') para darle instrucciones.');
-        console.log('');
-        console.log('El bot seguirá funcionando hasta que cierres Termux');
-        console.log('Para salir: Ctrl+C');
+        console.log('Ya puedes enviar mensajes de voz al bot');
+        console.log('desde tu número para darle instrucciones.');
         console.log('====================================');
       }
     });
@@ -153,9 +152,8 @@ async function iniciar() {
     sock.ev.on('creds.update', saveCreds);
     
   } catch (error) {
-    console.log('Error:', error.message);
-    console.log('');
-    console.log('Si el error es de conexión, espera 10 segundos y el bot reintentará automáticamente.');
+    console.log('Error de conexión. Reintentando en 10 segundos...');
+    setTimeout(iniciar, 10000);
   }
 }
 
