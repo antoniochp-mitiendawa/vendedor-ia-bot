@@ -69,93 +69,12 @@ echo "===================================="
 echo "✅ INSTALACIÓN COMPLETADA"
 echo "===================================="
 echo ""
-echo "AHORA SE GENERARÁ EL CÓDIGO DE EMPAREJAMIENTO"
+echo "AHORA SE INICIARÁ EL BOT"
+echo "Y TE MOSTRARÁ EL CÓDIGO DE EMPAREJAMIENTO"
 echo "PARA EL NÚMERO DEL BOT: $NUMERO_BOT"
 echo ""
+echo "INICIANDO EN 3 SEGUNDOS..."
+sleep 3
 
-# 11. INICIAR BOT Y GENERAR CÓDIGO
-echo "Iniciando bot..."
-sleep 2
-
-node -e "
-const { default: makeWASocket, useMultiFileAuthState } = require('@whiskeysockets/baileys');
-const fs = require('fs');
-
-async function iniciar() {
-  try {
-    const config = JSON.parse(fs.readFileSync('./config.json'));
-    const numeroBot = config.bot;
-    const numeroDueno = config.dueno;
-    
-    console.log('====================================');
-    console.log('📱 CÓDIGO DE EMPAREJAMIENTO');
-    console.log('====================================');
-    console.log('');
-    console.log('Número del BOT: ' + numeroBot);
-    console.log('');
-    
-    const { state, saveCreds } = await useMultiFileAuthState('auth_info');
-    
-    const sock = makeWASocket({
-      auth: state,
-      printQRInTerminal: false,
-      browser: ['Termux', 'Chrome', '20.0'],
-      syncFullHistory: false
-    });
-    
-    // SOLICITAR CÓDIGO DE EMPAREJAMIENTO
-    if (!sock.authState.creds.registered) {
-      console.log('🔄 Generando código de emparejamiento...');
-      console.log('');
-      
-      const pairingCode = await sock.requestPairingCode(numeroBot);
-      const codigoFormateado = pairingCode.match(/.{1,4}/g)?.join('-') || pairingCode;
-      
-      console.log('⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡');
-      console.log('⚡                                      ⚡');
-      console.log('⚡   CÓDIGO: ' + codigoFormateado + '   ⚡');
-      console.log('⚡                                      ⚡');
-      console.log('⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡⚡');
-      console.log('');
-      console.log('====================================');
-      console.log('INSTRUCCIONES:');
-      console.log('====================================');
-      console.log('1. Abre WhatsApp en tu teléfono');
-      console.log('2. Ve a Ajustes > Dispositivos vinculados');
-      console.log('3. Toca \"Vincular con número de teléfono\"');
-      console.log('4. Cuando te pida el código, ESCRIBE: ' + pairingCode);
-      console.log('');
-      console.log('⚠️  NO CIERRES ESTA VENTANA');
-      console.log('⚠️  El bot está esperando que vincules...');
-      console.log('====================================');
-    }
-    
-    // Esperar conexión exitosa
-    sock.ev.on('connection.update', (update) => {
-      const { connection } = update;
-      
-      if (connection === 'open') {
-        console.log('');
-        console.log('====================================');
-        console.log('✅ BOT CONECTADO EXITOSAMENTE');
-        console.log('====================================');
-        console.log('');
-        console.log('Dueño: ' + numeroDueno);
-        console.log('Bot: ' + numeroBot);
-        console.log('');
-        console.log('Ya puedes enviar mensajes de voz al bot');
-        console.log('desde tu número para darle instrucciones.');
-        console.log('====================================');
-      }
-    });
-    
-    sock.ev.on('creds.update', saveCreds);
-    
-  } catch (error) {
-    console.log('Error de conexión. Reintentando en 10 segundos...');
-    setTimeout(iniciar, 10000);
-  }
-}
-
-iniciar();
-"
+# 11. INICIAR EL BOT AUTOMÁTICAMENTE
+node bot.js
