@@ -25,23 +25,45 @@ let sock = null;
 let codigoGenerado = false;
 let reconectando = false;
 
+// Variables para SherpaNcnn
+let sherpaDisponible = false;
+let sherpaModel = null;
+
+// Intentar cargar SherpaNcnn (si está instalado)
+try {
+    const sherpa = require('sherpa-ncnn');
+    const MODEL_PATH = './sherpa-ncnn-streaming-zipformer-es-2024-02-08';
+    
+    if (fs.existsSync(MODEL_PATH)) {
+        // Configurar el reconocedor con el modelo en español [citation:2]
+        const recognizer = new sherpa.OnlineRecognizer({
+            tokens: path.join(MODEL_PATH, 'tokens.txt'),
+            encoder: path.join(MODEL_PATH, 'encoder_jit_trace-pnnx.ncnn.param'),
+            encoderBin: path.join(MODEL_PATH, 'encoder_jit_trace-pnnx.ncnn.bin'),
+            decoder: path.join(MODEL_PATH, 'decoder_jit_trace-pnnx.ncnn.param'),
+            decoderBin: path.join(MODEL_PATH, 'decoder_jit_trace-pnnx.ncnn.bin'),
+            joiner: path.join(MODEL_PATH, 'joiner_jit_trace-pnnx.ncnn.param'),
+            joinerBin: path.join(MODEL_PATH, 'joiner_jit_trace-pnnx.ncnn.bin'),
+            numThreads: 2,
+            enableEndpoint: true
+        });
+        
+        sherpaModel = recognizer;
+        sherpaDisponible = true;
+        console.log('🎤 SherpaNcnn: Modelo de voz cargado correctamente');
+    }
+} catch (error) {
+    console.log('🎤 SherpaNcnn: No disponible -', error.message);
+}
+
 function log(mensaje) {
     const fecha = new Date().toLocaleTimeString();
     console.log(`[${fecha}] ${mensaje}`);
 }
 
-// Función para pedir número (igual que en el proyecto que funciona)
-function pedirNumeroSilencioso() {
-    return new Promise((resolve) => {
-        const rl = readline.createInterface({
-            input: process.stdin,
-            output: process.stdout
-        });
-        rl.question('📱 Introduce tu número (sin +): ', (numero) => {
-            rl.close();
-            resolve(numero.trim());
-        });
-    });
+function formatearCodigo(codigo) {
+    if (!codigo) return '';
+    return codigo.match(/.{1,4}/g)?.join('-') || codigo;
 }
 
 async function iniciarBot() {
@@ -74,7 +96,7 @@ async function iniciarBot() {
             keepAliveIntervalMs: 30000
         });
 
-        // Si no hay sesión, pedir número y generar código
+        // Si no hay sesión, generar código de emparejamiento
         if (!sock.authState.creds.registered && !codigoGenerado && !reconectando) {
             console.log('\n====================================');
             console.log('📱 PRIMERA CONFIGURACIÓN');
@@ -85,7 +107,7 @@ async function iniciarBot() {
             setTimeout(async () => {
                 try {
                     const codigo = await sock.requestPairingCode(numeroBot);
-                    const codigoFormateado = codigo.match(/.{1,4}/g)?.join('-') || codigo;
+                    const codigoFormateado = formatearCodigo(codigo);
                     
                     codigoGenerado = true;
                     
@@ -125,6 +147,7 @@ async function iniciarBot() {
                 console.log('====================================\n');
                 log('Dueño: ' + config.dueno);
                 log('Bot: ' + numeroBot);
+                if (sherpaDisponible) console.log('🎤 SherpaNcnn: ACTIVADO');
                 console.log('');
             }
 
@@ -164,6 +187,9 @@ async function iniciarBot() {
                 return;
             }
 
+            // Verificar si es un mensaje de audio
+            const audioMsg = msg.message.audioMessage;
+            
             const texto = msg.message.conversation || 
                          msg.message.extendedTextMessage?.text || '';
 
@@ -175,19 +201,48 @@ async function iniciarBot() {
                 const contienePalabraClave = palabrasClave.some(p => 
                     texto.toLowerCase().includes(p)
                 );
-                if (!contienePalabraClave) {
+                if (!contienePalabraClave && !audioMsg) {
                     log('👨‍👩‍👧 Familiar ignorado: ' + numeroLimpio);
                     return;
                 }
             }
 
-            // Dueño
+            // Dueño - procesar instrucciones (texto o voz)
             if (numeroLimpio === config.dueno) {
-                log('📝 DUEÑO: ' + texto);
-                await sock.sendPresenceUpdate('composing', remitente);
-                setTimeout(async () => {
-                    await sock.sendMessage(remitente, { text: '✅ Instrucción recibida' });
-                }, 2000);
+                // Si es un audio y Sherpa está disponible
+                if (audioMsg && sherpaDisponible) {
+                    log('🎤 Procesando instrucción de voz...');
+                    await sock.sendPresenceUpdate('composing', remitente);
+                    
+                    try {
+                        // Descargar audio
+                        const buffer = await sock.downloadMediaMessage(msg);
+                        const audioPath = path.join('/sdcard/Download', `audio_${Date.now()}.wav`);
+                        fs.writeFileSync(audioPath, buffer);
+                        
+                        // Aquí iría la transcripción con SherpaNcnn
+                        // Por ahora simulamos respuesta
+                        log('📝 Audio recibido - transcripción simulada');
+                        
+                        await sock.sendMessage(remitente, { 
+                            text: '✅ Instrucción de voz recibida' 
+                        });
+                        
+                        // Limpiar archivo temporal
+                        try { fs.unlinkSync(audioPath); } catch (e) {}
+                        
+                    } catch (error) {
+                        log('❌ Error procesando audio: ' + error.message);
+                    }
+                }
+                // Si es texto
+                else {
+                    log('📝 DUEÑO: ' + texto);
+                    await sock.sendPresenceUpdate('composing', remitente);
+                    setTimeout(async () => {
+                        await sock.sendMessage(remitente, { text: '✅ Instrucción recibida' });
+                    }, 2000);
+                }
             }
             // Cliente
             else {
