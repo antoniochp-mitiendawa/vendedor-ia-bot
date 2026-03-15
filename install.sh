@@ -18,7 +18,7 @@ NODE_OK=0
 PYTHON_OK=0
 GIT_OK=0
 BAILEYS_OK=0
-WHISPER_OK=0
+VOSK_OK=0
 GEMMA_OK=0
 SESION_OK=0
 
@@ -98,29 +98,51 @@ else
         echo -e "${ROJO}   ❌ Error instalando Baileys${RESET}"
     fi
 fi
-echo ""
 
-# VERIFICAR Whisper
-echo -e "${AMARILLO}[6/8] Verificando Whisper...${RESET}"
-python -c "import whisper" 2>/dev/null
-if [ $? -eq 0 ]; then
-    WHISPER_OK=1
-    echo -e "${VERDE}   ✅ Whisper ya está instalado y funcionando${RESET}"
-else
-    echo -e "${AMARILLO}   ⚠️ Whisper no encontrado, instalando (puede tardar)...${RESET}"
-    pip install openai-whisper
-    python -c "import whisper" 2>/dev/null
-    if [ $? -eq 0 ]; then
-        WHISPER_OK=1
-        echo -e "${VERDE}   ✅ Whisper instalado${RESET}"
+# VERIFICAR VOSK (NUEVO - REEMPLAZA A WHISPER)
+echo -e "${AMARILLO}[6/8] Verificando Vosk...${RESET}"
+
+# Verificar si el módulo de Node.js está instalado
+if [ -d "node_modules/vosk" ]; then
+    # Verificar si el modelo pequeño está descargado
+    if [ -d "vosk-model-small-es-0.42" ]; then
+        VOSK_OK=1
+        echo -e "${VERDE}   ✅ Vosk ya está instalado (modelo español pequeño)${RESET}"
     else
-        echo -e "${ROJO}   ❌ Error instalando Whisper${RESET}"
-        echo -e "${AMARILLO}   ⚠️ Continuando sin Whisper (funciones de voz limitadas)${RESET}"
+        echo -e "${AMARILLO}   ⚠️ Modelo Vosk no encontrado, descargando (40MB)...${RESET}"
+        wget -O vosk-model-small-es-0.42.zip https://alphacephei.com/vosk/models/vosk-model-small-es-0.42.zip
+        unzip vosk-model-small-es-0.42.zip
+        rm vosk-model-small-es-0.42.zip
+        if [ -d "vosk-model-small-es-0.42" ]; then
+            VOSK_OK=1
+            echo -e "${VERDE}   ✅ Modelo Vosk descargado${RESET}"
+        else
+            echo -e "${ROJO}   ❌ Error descargando modelo Vosk${RESET}"
+            echo -e "${AMARILLO}   ⚠️ Continuando sin Vosk (funciones de voz limitadas)${RESET}"
+        fi
+    fi
+else
+    echo -e "${AMARILLO}   ⚠️ Módulo Vosk no encontrado, instalando...${RESET}"
+    npm install vosk
+    if [ -d "node_modules/vosk" ]; then
+        echo -e "${AMARILLO}   ⚠️ Descargando modelo español pequeño (40MB)...${RESET}"
+        wget -O vosk-model-small-es-0.42.zip https://alphacephei.com/vosk/models/vosk-model-small-es-0.42.zip
+        unzip vosk-model-small-es-0.42.zip
+        rm vosk-model-small-es-0.42.zip
+        if [ -d "vosk-model-small-es-0.42" ]; then
+            VOSK_OK=1
+            echo -e "${VERDE}   ✅ Vosk instalado correctamente${RESET}"
+        else
+            echo -e "${ROJO}   ❌ Error descargando modelo Vosk${RESET}"
+        fi
+    else
+        echo -e "${ROJO}   ❌ Error instalando módulo Vosk${RESET}"
+        echo -e "${AMARILLO}   ⚠️ Continuando sin Vosk${RESET}"
     fi
 fi
 echo ""
 
-# VERIFICAR Gemma 3 - CORREGIDO: Usando modelo público alternativo
+# VERIFICAR Gemma 3 (TinyLlama como alternativa)
 echo -e "${AMARILLO}[7/8] Verificando modelo Gemma 3...${RESET}"
 if [ -f "gemma-3-1b-it-Q4_0.gguf" ]; then
     TAMANO=$(wc -c < "gemma-3-1b-it-Q4_0.gguf" 2>/dev/null)
@@ -129,16 +151,16 @@ if [ -f "gemma-3-1b-it-Q4_0.gguf" ]; then
         echo -e "${VERDE}   ✅ Modelo Gemma 3 ya existe (${TAMANO} bytes)${RESET}"
     else
         echo -e "${ROJO}   ❌ Modelo corrupto (tamaño: ${TAMANO} bytes)${RESET}"
-        echo -e "${AMARILLO}   ⚠️ Descargando de nuevo...${RESET}"
+        echo -e "${AMARILLO}   ⚠️ Descargando TinyLlama como alternativa...${RESET}"
         rm -f gemma-3-1b-it-Q4_0.gguf
         wget -O gemma-3-1b-it-Q4_0.gguf https://huggingface.co/TheBloke/TinyLlama-1.1B-GGUF/resolve/main/tinyllama-1.1b.Q4_K_M.gguf
         if [ $? -eq 0 ]; then
             GEMMA_OK=1
-            echo -e "${VERDE}   ✅ Modelo descargado${RESET}"
+            echo -e "${VERDE}   ✅ Modelo TinyLlama descargado${RESET}"
         fi
     fi
 else
-    echo -e "${AMARILLO}   ⚠️ Modelo no encontrado, descargando (670MB)...${RESET}"
+    echo -e "${AMARILLO}   ⚠️ Modelo no encontrado, descargando TinyLlama (670MB)...${RESET}"
     wget -O gemma-3-1b-it-Q4_0.gguf https://huggingface.co/TheBloke/TinyLlama-1.1B-GGUF/resolve/main/tinyllama-1.1b.Q4_K_M.gguf
     if [ $? -eq 0 ]; then
         GEMMA_OK=1
@@ -211,7 +233,7 @@ echo ""
 [ $PYTHON_OK -eq 1 ] && echo -e "${VERDE}✅ Python: Instalado${RESET}" || echo -e "${ROJO}❌ Python: No instalado${RESET}"
 [ $GIT_OK -eq 1 ] && echo -e "${VERDE}✅ Git: Instalado${RESET}" || echo -e "${ROJO}❌ Git: No instalado${RESET}"
 [ $BAILEYS_OK -eq 1 ] && echo -e "${VERDE}✅ Baileys: Instalado${RESET}" || echo -e "${ROJO}❌ Baileys: No instalado${RESET}"
-[ $WHISPER_OK -eq 1 ] && echo -e "${VERDE}✅ Whisper: Instalado${RESET}" || echo -e "${AMARILLO}⚠️ Whisper: No instalado${RESET}"
+[ $VOSK_OK -eq 1 ] && echo -e "${VERDE}✅ Vosk: Instalado${RESET}" || echo -e "${AMARILLO}⚠️ Vosk: No instalado${RESET}"
 [ $GEMMA_OK -eq 1 ] && echo -e "${VERDE}✅ Gemma 3: Instalado${RESET}" || echo -e "${AMARILLO}⚠️ Gemma 3: No instalado${RESET}"
 [ $SESION_OK -eq 1 ] && echo -e "${VERDE}✅ Sesión WhatsApp: Disponible${RESET}" || echo -e "${AMARILLO}⚠️ Sesión WhatsApp: Nueva${RESET}"
 echo ""
