@@ -35,9 +35,11 @@ try {
         voskModel = new vosk.Model(MODEL_PATH);
         voskDisponible = true;
         console.log('🎤 Vosk: Modelo de voz cargado correctamente');
+    } else {
+        console.log('🎤 Vosk: Modelo no encontrado en ' + MODEL_PATH);
     }
 } catch (error) {
-    console.log('🎤 Vosk: No disponible');
+    console.log('🎤 Vosk: No disponible -', error.message);
 }
 
 function log(mensaje) {
@@ -125,6 +127,13 @@ async function iniciarBot() {
                     reconectando = true;
                     log('❌ Conexión perdida. Reconectando...');
                     setTimeout(iniciarBot, 5000);
+                } else {
+                    log('🚫 Sesión cerrada. Eliminando credenciales...');
+                    try {
+                        fs.rmSync('auth_info', { recursive: true, force: true });
+                    } catch (e) {}
+                    codigoGenerado = false;
+                    setTimeout(iniciarBot, 5000);
                 }
             }
         });
@@ -145,50 +154,61 @@ async function iniciarBot() {
             
             // Familiares
             if (config.familiares && config.familiares[numeroLimpio]) {
-                const palabrasClave = ['menu', 'desayuno', 'comida'];
+                const palabrasClave = ['menu', 'desayuno', 'comida', 'que hay', 'precios'];
                 if (!palabrasClave.some(p => texto.toLowerCase().includes(p))) {
+                    log('👨‍👩‍👧 Familiar ignorado: ' + numeroLimpio);
                     return;
                 }
             }
             
             // Dueño
             if (numeroLimpio === config.dueno) {
-                log('📝 Dueño: ' + texto);
+                log('📝 INSTRUCCIÓN DEL DUEÑO: ' + texto);
                 await sock.sendPresenceUpdate('composing', numero);
                 setTimeout(async () => {
-                    await sock.sendMessage(numero, { text: '✅ Recibido' });
+                    await sock.sendMessage(numero, { text: '✅ Instrucción recibida' });
                 }, 2000);
             }
             // Cliente
             else {
-                log('💬 Cliente: ' + texto);
+                log('💬 CLIENTE: ' + texto + ' - ' + numeroLimpio);
                 await sock.sendPresenceUpdate('composing', numero);
+                
+                const delay = Math.floor(Math.random() * 4000) + 1000;
                 
                 setTimeout(async () => {
                     let respuesta = '';
-                    if (texto.toLowerCase().includes('hola')) {
+                    
+                    if (texto.toLowerCase().includes('hola') || texto.toLowerCase().includes('buenos')) {
                         respuesta = '¡Buenos días! 🌞 Soy el asistente.\n\n' +
                                   '🍳 *Desayunos:* Huevos divorciados 🌶️, Chilaquiles 🫑\n' +
                                   '☕ *Incluyen:* fruta, jugo y café\n\n' +
                                   '¿Qué se le antoja? 😋';
+                    } else if (texto.toLowerCase().includes('precio')) {
+                        respuesta = '💰 *Precios:*\nDesayunos: $85\nComida: $120';
+                    } else if (texto.toLowerCase().includes('gracias')) {
+                        respuesta = '¡A ti por preferirnos! 🙏';
                     } else {
                         respuesta = '¿En qué puedo ayudarte?';
                     }
+                    
                     await sock.sendMessage(numero, { text: respuesta });
-                }, 2000);
+                }, delay);
             }
         });
 
     } catch (error) {
-        log('❌ Error: ' + error.message);
+        log('❌ Error fatal: ' + error.message);
         setTimeout(iniciarBot, 5000);
     }
 }
 
 process.on('SIGINT', () => {
-    console.log('\n👋 Cerrando...');
+    console.log('\n👋 Cerrando bot...');
+    if (sock) sock.end();
     process.exit(0);
 });
 
-console.log('\n🤖 VENDEDOR IA\n');
+console.log('\n🤖 VENDEDOR IA PARA WHATSAPP');
+console.log('====================================');
 iniciarBot();
