@@ -19,7 +19,7 @@ PYTHON_OK=0
 GIT_OK=0
 BAILEYS_OK=0
 VOSK_OK=0
-GEMMA_OK=0
+MODELO_OK=0
 SESION_OK=0
 
 # VERIFICAR Node.js
@@ -83,109 +83,77 @@ else
 fi
 echo ""
 
-# VERIFICAR dependencias Node.js
-echo -e "${AMARILLO}[5/8] Verificando dependencias Node.js...${RESET}"
-if [ -d "node_modules" ] && [ -d "node_modules/@whiskeysockets/baileys" ]; then
-    BAILEYS_OK=1
-    echo -e "${VERDE}   ✅ Baileys ya está instalado${RESET}"
-else
-    echo -e "${AMARILLO}   ⚠️ Instalando Baileys y dependencias...${RESET}"
-    npm install @whiskeysockets/baileys@6.7.0 qrcode-terminal
+# VERIFICAR/INSTALAR DEPENDENCIAS NODE.JS (BAILEYS)
+echo -e "${AMARILLO}[5/8] Instalando dependencias Node.js...${RESET}"
+if [ -f "package.json" ]; then
+    npm install
     if [ -d "node_modules/@whiskeysockets/baileys" ]; then
         BAILEYS_OK=1
-        echo -e "${VERDE}   ✅ Baileys instalado${RESET}"
+        echo -e "${VERDE}   ✅ Baileys instalado correctamente${RESET}"
     else
         echo -e "${ROJO}   ❌ Error instalando Baileys${RESET}"
     fi
-fi
-
-# VERIFICAR VOSK (NUEVO - REEMPLAZA A WHISPER)
-echo -e "${AMARILLO}[6/8] Verificando Vosk...${RESET}"
-
-# Verificar si el módulo de Node.js está instalado
-if [ -d "node_modules/vosk" ]; then
-    # Verificar si el modelo pequeño está descargado
-    if [ -d "vosk-model-small-es-0.42" ]; then
-        VOSK_OK=1
-        echo -e "${VERDE}   ✅ Vosk ya está instalado (modelo español pequeño)${RESET}"
-    else
-        echo -e "${AMARILLO}   ⚠️ Modelo Vosk no encontrado, descargando (40MB)...${RESET}"
-        wget -O vosk-model-small-es-0.42.zip https://alphacephei.com/vosk/models/vosk-model-small-es-0.42.zip
-        unzip vosk-model-small-es-0.42.zip
-        rm vosk-model-small-es-0.42.zip
-        if [ -d "vosk-model-small-es-0.42" ]; then
-            VOSK_OK=1
-            echo -e "${VERDE}   ✅ Modelo Vosk descargado${RESET}"
-        else
-            echo -e "${ROJO}   ❌ Error descargando modelo Vosk${RESET}"
-            echo -e "${AMARILLO}   ⚠️ Continuando sin Vosk (funciones de voz limitadas)${RESET}"
-        fi
-    fi
 else
-    echo -e "${AMARILLO}   ⚠️ Módulo Vosk no encontrado, instalando...${RESET}"
-    npm install vosk
-    if [ -d "node_modules/vosk" ]; then
-        echo -e "${AMARILLO}   ⚠️ Descargando modelo español pequeño (40MB)...${RESET}"
-        wget -O vosk-model-small-es-0.42.zip https://alphacephei.com/vosk/models/vosk-model-small-es-0.42.zip
-        unzip vosk-model-small-es-0.42.zip
-        rm vosk-model-small-es-0.42.zip
-        if [ -d "vosk-model-small-es-0.42" ]; then
-            VOSK_OK=1
-            echo -e "${VERDE}   ✅ Vosk instalado correctamente${RESET}"
-        else
-            echo -e "${ROJO}   ❌ Error descargando modelo Vosk${RESET}"
-        fi
-    else
-        echo -e "${ROJO}   ❌ Error instalando módulo Vosk${RESET}"
-        echo -e "${AMARILLO}   ⚠️ Continuando sin Vosk${RESET}"
-    fi
+    echo -e "${ROJO}   ❌ No se encuentra package.json${RESET}"
 fi
 echo ""
 
-# VERIFICAR Gemma 3 (TinyLlama como alternativa)
-echo -e "${AMARILLO}[7/8] Verificando modelo Gemma 3...${RESET}"
-if [ -f "gemma-3-1b-it-Q4_0.gguf" ]; then
-    TAMANO=$(wc -c < "gemma-3-1b-it-Q4_0.gguf" 2>/dev/null)
-    if [ $TAMANO -gt 500000000 ]; then
-        GEMMA_OK=1
-        echo -e "${VERDE}   ✅ Modelo Gemma 3 ya existe (${TAMANO} bytes)${RESET}"
-    else
-        echo -e "${ROJO}   ❌ Modelo corrupto (tamaño: ${TAMANO} bytes)${RESET}"
-        echo -e "${AMARILLO}   ⚠️ Descargando TinyLlama como alternativa...${RESET}"
-        rm -f gemma-3-1b-it-Q4_0.gguf
-        wget -O gemma-3-1b-it-Q4_0.gguf https://huggingface.co/TheBloke/TinyLlama-1.1B-GGUF/resolve/main/tinyllama-1.1b.Q4_K_M.gguf
-        if [ $? -eq 0 ]; then
-            GEMMA_OK=1
-            echo -e "${VERDE}   ✅ Modelo TinyLlama descargado${RESET}"
-        fi
-    fi
+# VERIFICAR VOSK
+echo -e "${AMARILLO}[6/8] Verificando Vosk...${RESET}"
+
+# Instalar módulo Vosk (versión correcta)
+if [ ! -d "node_modules/vosk" ]; then
+    echo -e "${AMARILLO}   ⚠️ Instalando módulo Vosk...${RESET}"
+    npm install vosk@0.3.43
+fi
+
+# Descargar modelo español pequeño
+if [ ! -d "vosk-model-small-es-0.42" ]; then
+    echo -e "${AMARILLO}   ⚠️ Descargando modelo Vosk (40MB)...${RESET}"
+    wget -O vosk-model-small-es-0.42.zip https://alphacephei.com/vosk/models/vosk-model-small-es-0.42.zip
+    unzip vosk-model-small-es-0.42.zip
+    rm vosk-model-small-es-0.42.zip
+fi
+
+if [ -d "node_modules/vosk" ] && [ -d "vosk-model-small-es-0.42" ]; then
+    VOSK_OK=1
+    echo -e "${VERDE}   ✅ Vosk instalado correctamente${RESET}"
 else
-    echo -e "${AMARILLO}   ⚠️ Modelo no encontrado, descargando TinyLlama (670MB)...${RESET}"
-    wget -O gemma-3-1b-it-Q4_0.gguf https://huggingface.co/TheBloke/TinyLlama-1.1B-GGUF/resolve/main/tinyllama-1.1b.Q4_K_M.gguf
+    echo -e "${ROJO}   ❌ Error instalando Vosk${RESET}"
+    echo -e "${AMARILLO}   ⚠️ Continuando sin Vosk (sin comandos de voz)${RESET}"
+fi
+echo ""
+
+# VERIFICAR MODELO IA (Phi-2 - no requiere autenticación)
+echo -e "${AMARILLO}[7/8] Verificando modelo IA...${RESET}"
+if [ ! -f "modelo.gguf" ]; then
+    echo -e "${AMARILLO}   ⚠️ Descargando modelo (350MB)...${RESET}"
+    wget -O modelo.gguf https://huggingface.co/microsoft/phi-2/resolve/main/phi-2.Q4_K_M.gguf
     if [ $? -eq 0 ]; then
-        GEMMA_OK=1
+        MODELO_OK=1
         echo -e "${VERDE}   ✅ Modelo descargado${RESET}"
     else
         echo -e "${ROJO}   ❌ Error descargando modelo${RESET}"
+        echo -e "${AMARILLO}   ⚠️ Continuando sin IA local${RESET}"
     fi
+else
+    MODELO_OK=1
+    echo -e "${VERDE}   ✅ Modelo ya existe${RESET}"
 fi
 echo ""
 
 # VERIFICAR sesión de WhatsApp
 echo -e "${AMARILLO}[8/8] Verificando sesión de WhatsApp...${RESET}"
 if [ -d "auth_info" ] && [ -f "auth_info/creds.json" ]; then
-    SESION_OK=1
-    echo -e "${VERDE}   ✅ Sesión existente encontrada${RESET}"
-    
     if [ -s "auth_info/creds.json" ]; then
-        echo -e "${VERDE}   ✅ Archivo de credenciales válido${RESET}"
+        SESION_OK=1
+        echo -e "${VERDE}   ✅ Sesión existente encontrada${RESET}"
     else
         echo -e "${ROJO}   ❌ Archivo de credenciales vacío${RESET}"
-        echo -e "${AMARILLO}   ⚠️ Se generará código nuevo${RESET}"
-        SESION_OK=0
+        rm -rf auth_info
     fi
 else
-    echo -e "${AMARILLO}   ⚠️ No hay sesión guardada (se generará código nuevo)${RESET}"
+    echo -e "${AMARILLO}   ⚠️ No hay sesión guardada${RESET}"
 fi
 echo ""
 
@@ -195,7 +163,7 @@ if [ -f "config.json" ]; then
     DUENO=$(grep -o '"dueno":"[^"]*"' config.json | cut -d '"' -f4)
     BOT=$(grep -o '"bot":"[^"]*"' config.json | cut -d '"' -f4)
     if [ -n "$DUENO" ] && [ -n "$BOT" ]; then
-        echo -e "${VERDE}   ✅ Configuración existente: Dueño: $DUENO, Bot: $BOT${RESET}"
+        echo -e "${VERDE}   ✅ Configuración existente: Dueño: $DUENO${RESET}"
     else
         echo -e "${ROJO}   ❌ Archivo config.json corrupto${RESET}"
         rm -f config.json
@@ -221,7 +189,6 @@ if [ ! -f "config.json" ]; then
     echo "{\"dueno\":\"$NUMERO_DUENO\",\"bot\":\"$NUMERO_BOT\",\"familiares\":{},\"menu\":{\"desayunos\":[],\"comida\":[]}}" > config.json
     echo -e "${VERDE}✅ Configuración guardada${RESET}"
     echo ""
-    sleep 2
 fi
 
 # Mostrar resumen
@@ -234,8 +201,8 @@ echo ""
 [ $GIT_OK -eq 1 ] && echo -e "${VERDE}✅ Git: Instalado${RESET}" || echo -e "${ROJO}❌ Git: No instalado${RESET}"
 [ $BAILEYS_OK -eq 1 ] && echo -e "${VERDE}✅ Baileys: Instalado${RESET}" || echo -e "${ROJO}❌ Baileys: No instalado${RESET}"
 [ $VOSK_OK -eq 1 ] && echo -e "${VERDE}✅ Vosk: Instalado${RESET}" || echo -e "${AMARILLO}⚠️ Vosk: No instalado${RESET}"
-[ $GEMMA_OK -eq 1 ] && echo -e "${VERDE}✅ Gemma 3: Instalado${RESET}" || echo -e "${AMARILLO}⚠️ Gemma 3: No instalado${RESET}"
-[ $SESION_OK -eq 1 ] && echo -e "${VERDE}✅ Sesión WhatsApp: Disponible${RESET}" || echo -e "${AMARILLO}⚠️ Sesión WhatsApp: Nueva${RESET}"
+[ $MODELO_OK -eq 1 ] && echo -e "${VERDE}✅ Modelo IA: Instalado${RESET}" || echo -e "${AMARILLO}⚠️ Modelo IA: No instalado${RESET}"
+[ $SESION_OK -eq 1 ] && echo -e "${VERDE}✅ Sesión WhatsApp: Activa${RESET}" || echo -e "${AMARILLO}⚠️ Sesión WhatsApp: Nueva${RESET}"
 echo ""
 
 # Iniciar bot
@@ -245,5 +212,4 @@ echo -e "${AZUL}====================================${RESET}"
 echo ""
 sleep 2
 
-# Ejecutar bot.js
 node bot.js
