@@ -81,8 +81,10 @@ else
 fi
 echo ""
 
-# INSTALAR DEPENDENCIAS NODE.JS (COMO EN EL PROYECTO QUE FUNCIONA)
+# INSTALAR DEPENDENCIAS NODE.JS (PRIMERO BAILEYS, LUEGO VOSK POR SEPARADO)
 echo -e "${AMARILLO}[5/8] Instalando dependencias Node.js...${RESET}"
+
+# Instalar Baileys y otras dependencias (sin Vosk)
 npm install @whiskeysockets/baileys
 npm install @hapi/boom
 npm install qrcode-terminal
@@ -90,33 +92,42 @@ npm install axios
 npm install pino
 npm install link-preview-js
 npm install @rodrigogs/baileys-store
-npm install vosk@0.3.45
 
 if [ -d "node_modules/@whiskeysockets/baileys" ]; then
     BAILEYS_OK=1
     echo -e "${VERDE}   ✅ Baileys instalado correctamente${RESET}"
+    
+    # AHORA instalar Vosk por separado (para que no afecte a Baileys)
+    echo -e "${AMARILLO}   Instalando Vosk por separado...${RESET}"
+    npm install vosk@0.3.45
+    if [ -d "node_modules/vosk" ]; then
+        VOSK_OK=1
+        echo -e "${VERDE}   ✅ Vosk instalado${RESET}"
+    else
+        echo -e "${ROJO}   ❌ Error instalando Vosk${RESET}"
+        echo -e "${AMARILLO}   ⚠️ Continuando sin Vosk${RESET}"
+    fi
 else
     echo -e "${ROJO}   ❌ Error instalando Baileys${RESET}"
 fi
 echo ""
 
-# VERIFICAR VOSK Y DESCARGAR MODELO
-echo -e "${AMARILLO}[6/8] Verificando Vosk...${RESET}"
-
-# Descargar modelo español pequeño
-if [ ! -d "vosk-model-small-es-0.42" ]; then
-    echo -e "${AMARILLO}   ⚠️ Descargando modelo Vosk (40MB)...${RESET}"
-    wget -O vosk-model-small-es-0.42.zip https://alphacephei.com/vosk/models/vosk-model-small-es-0.42.zip
-    unzip vosk-model-small-es-0.42.zip
-    rm vosk-model-small-es-0.42.zip
-fi
-
-if [ -d "node_modules/vosk" ] && [ -d "vosk-model-small-es-0.42" ]; then
-    VOSK_OK=1
-    echo -e "${VERDE}   ✅ Vosk instalado correctamente${RESET}"
+# VERIFICAR VOSK Y DESCARGAR MODELO (solo si Vosk se instaló)
+if [ $VOSK_OK -eq 1 ]; then
+    echo -e "${AMARILLO}[6/8] Verificando modelo de Vosk...${RESET}"
+    
+    # Descargar modelo español pequeño
+    if [ ! -d "vosk-model-small-es-0.42" ]; then
+        echo -e "${AMARILLO}   ⚠️ Descargando modelo Vosk (40MB)...${RESET}"
+        wget -O vosk-model-small-es-0.42.zip https://alphacephei.com/vosk/models/vosk-model-small-es-0.42.zip
+        unzip vosk-model-small-es-0.42.zip
+        rm vosk-model-small-es-0.42.zip
+        echo -e "${VERDE}   ✅ Modelo Vosk descargado${RESET}"
+    else
+        echo -e "${VERDE}   ✅ Modelo Vosk ya existe${RESET}"
+    fi
 else
-    echo -e "${ROJO}   ❌ Error instalando Vosk${RESET}"
-    echo -e "${AMARILLO}   ⚠️ Continuando sin Vosk${RESET}"
+    echo -e "${AMARILLO}[6/8] Saltando Vosk (no instalado)...${RESET}"
 fi
 echo ""
 
