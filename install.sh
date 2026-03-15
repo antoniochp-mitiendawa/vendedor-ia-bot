@@ -13,7 +13,7 @@ echo -e "${VERDE}🍳 VENDEDOR IA - INSTALACIÓN${RESET}"
 echo -e "${AZUL}====================================${RESET}"
 echo ""
 
-# VARIABLES
+# VARIABLES PARA LLEVAR REGISTRO
 NODE_OK=0
 PYTHON_OK=0
 GIT_OK=0
@@ -28,11 +28,13 @@ if command -v node &> /dev/null; then
     NODE_OK=1
     echo -e "${VERDE}   ✅ Node.js ya está instalado${RESET}"
 else
-    echo -e "${AMARILLO}   ⚠️ Node.js no encontrado, instalando...${RESET}"
-    pkg install -y nodejs
+    echo -e "${AMARILLO}   ⚠️ Node.js no encontrado, instalando nodejs-lts...${RESET}"
+    pkg install -y nodejs-lts
     if command -v node &> /dev/null; then
         NODE_OK=1
-        echo -e "${VERDE}   ✅ Node.js instalado${RESET}"
+        echo -e "${VERDE}   ✅ Node.js LTS instalado${RESET}"
+    else
+        echo -e "${ROJO}   ❌ Error instalando Node.js${RESET}"
     fi
 fi
 echo ""
@@ -48,6 +50,8 @@ else
     if command -v python &> /dev/null; then
         PYTHON_OK=1
         echo -e "${VERDE}   ✅ Python instalado${RESET}"
+    else
+        echo -e "${ROJO}   ❌ Error instalando Python${RESET}"
     fi
 fi
 echo ""
@@ -77,9 +81,17 @@ else
 fi
 echo ""
 
-# INSTALAR DEPENDENCIAS NODE.JS (PRIMERO BAILEYS)
+# INSTALAR DEPENDENCIAS NODE.JS (COMO EN EL PROYECTO QUE FUNCIONA)
 echo -e "${AMARILLO}[5/8] Instalando dependencias Node.js...${RESET}"
-npm install @whiskeysockets/baileys@6.7.0 qrcode-terminal @hapi/boom
+npm install @whiskeysockets/baileys
+npm install @hapi/boom
+npm install qrcode-terminal
+npm install axios
+npm install pino
+npm install link-preview-js
+npm install @rodrigogs/baileys-store
+npm install vosk@0.3.45
+
 if [ -d "node_modules/@whiskeysockets/baileys" ]; then
     BAILEYS_OK=1
     echo -e "${VERDE}   ✅ Baileys instalado correctamente${RESET}"
@@ -88,14 +100,8 @@ else
 fi
 echo ""
 
-# VERIFICAR VOSK (VERSIÓN 0.3.45 - LA QUE SÍ EXISTE)
+# VERIFICAR VOSK Y DESCARGAR MODELO
 echo -e "${AMARILLO}[6/8] Verificando Vosk...${RESET}"
-
-# Instalar módulo Vosk
-if [ ! -d "node_modules/vosk" ]; then
-    echo -e "${AMARILLO}   ⚠️ Instalando módulo Vosk...${RESET}"
-    npm install vosk@0.3.45
-fi
 
 # Descargar modelo español pequeño
 if [ ! -d "vosk-model-small-es-0.42" ]; then
@@ -114,13 +120,10 @@ else
 fi
 echo ""
 
-# VERIFICAR MODELO IA (USANDO EL QUE YA TIENES)
+# VERIFICAR MODELO IA (TinyLlama)
 echo -e "${AMARILLO}[7/8] Verificando modelo IA...${RESET}"
-if [ -f "modelo.gguf" ]; then
-    MODELO_OK=1
-    echo -e "${VERDE}   ✅ Modelo IA ya existe${RESET}"
-else
-    echo -e "${AMARILLO}   ⚠️ Modelo no encontrado, descargando (350MB)...${RESET}"
+if [ ! -f "modelo.gguf" ]; then
+    echo -e "${AMARILLO}   ⚠️ Descargando modelo (670MB)...${RESET}"
     wget -O modelo.gguf https://huggingface.co/TheBloke/TinyLlama-1.1B-GGUF/resolve/main/tinyllama-1.1b.Q4_K_M.gguf
     if [ $? -eq 0 ]; then
         MODELO_OK=1
@@ -129,6 +132,9 @@ else
         echo -e "${ROJO}   ❌ Error descargando modelo${RESET}"
         echo -e "${AMARILLO}   ⚠️ Continuando sin IA local${RESET}"
     fi
+else
+    MODELO_OK=1
+    echo -e "${VERDE}   ✅ Modelo ya existe${RESET}"
 fi
 echo ""
 
@@ -155,7 +161,7 @@ if [ -f "config.json" ]; then
     if [ -n "$DUENO" ] && [ -n "$BOT" ]; then
         echo -e "${VERDE}   ✅ Configuración existente: Dueño: $DUENO${RESET}"
     else
-        echo -e "${ROJO}   ❌ Archivo corrupto${RESET}"
+        echo -e "${ROJO}   ❌ Archivo config.json corrupto${RESET}"
         rm -f config.json
     fi
 else
