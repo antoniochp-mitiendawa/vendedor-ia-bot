@@ -1,80 +1,97 @@
 #!/bin/bash
 
-echo "===================================="
-echo "🍳 VENDEDOR IA - INSTALACIÓN AUTOMÁTICA"
-echo "===================================="
-echo "Esto tomará 5-10 minutos. No cierres Termux."
+# Colores para mejor visibilidad
+VERDE='\033[0;32m'
+AMARILLO='\033[1;33m'
+ROJO='\033[0;31m'
+AZUL='\033[0;34m'
+RESET='\033[0m'
+
+clear
+echo -e "${AZUL}====================================${RESET}"
+echo -e "${VERDE}🍳 VENDEDOR IA - INSTALACIÓN${RESET}"
+echo -e "${AZUL}====================================${RESET}"
 echo ""
 
-# 1. Actualizar Termux
-echo "[1/8] Actualizando Termux..."
-pkg update -y && pkg upgrade -y
-
-# 2. Instalar herramientas básicas
-echo "[2/8] Instalando Node.js, Python y herramientas..."
-pkg install -y nodejs python git ffmpeg wget
-
-# 3. Limpiar caché de npm
-echo "[3/8] Limpiando caché de npm..."
-npm cache clean --force
-
-# 4. Instalar dependencias de Node.js
-echo "[4/8] Instalando Baileys y librerías..."
-npm install -g npm@latest
-npm install @whiskeysockets/baileys@6.7.0 qrcode-terminal @xenova/transformers --force
-
-# 5. Verificar instalación de Baileys
-echo "[5/8] Verificando instalación..."
-if [ -d "node_modules/@whiskeysockets/baileys" ]; then
-    echo "✅ Baileys instalado correctamente"
+# Verificar si ya existe configuración
+if [ -f "config.json" ]; then
+    echo -e "${AMARILLO}📋 Configuración existente detectada${RESET}"
+    echo -e "   Usando números guardados"
+    echo ""
+    sleep 2
 else
-    echo "⚠️ Reintentando instalación de Baileys..."
-    npm install @whiskeysockets/baileys@6.7.0 --force
+    echo -e "${AMARILLO}📱 CONFIGURACIÓN INICIAL${RESET}"
+    echo ""
+    echo "Ingresa el número del DUEÑO (el que dará instrucciones):"
+    echo "Ejemplo: 5215512345678"
+    read -p "➤ " NUMERO_DUENO
+    echo ""
+    echo "Ingresa el número del BOT (el que contestará a clientes):"
+    echo "Ejemplo: 5215512345679"
+    read -p "➤ " NUMERO_BOT
+    echo ""
+    
+    # Guardar configuración
+    echo "{\"dueno\":\"$NUMERO_DUENO\",\"bot\":\"$NUMERO_BOT\",\"familiares\":{},\"menu\":{\"desayunos\":[],\"comida\":[]}}" > config.json
+    echo -e "${VERDE}✅ Configuración guardada${RESET}"
+    echo ""
+    sleep 2
 fi
 
-# 6. Instalar Whisper
-echo "[6/8] Instalando Whisper..."
-pip install openai-whisper
-
-# 7. Descargar Gemma 3
-echo "[7/8] Descargando inteligencia artificial Gemma 3..."
-wget -O gemma-3-1b-it-Q4_0.gguf https://huggingface.co/google/gemma-3-1b-it-quantized/resolve/main/gemma-3-1b-it-Q4_0.gguf
-
-# 8. PEDIR LOS DOS NÚMEROS
-clear
-echo "===================================="
-echo "📱 CONFIGURACIÓN DE NÚMEROS"
-echo "===================================="
-echo ""
-echo "Vamos a necesitar DOS números diferentes:"
-echo ""
-echo "1️⃣  Número del DUEÑO (el que dará instrucciones al bot)"
-echo "   Ejemplo: 5215512345678"
-echo ""
-read -p "➤ Número del DUEÑO: " NUMERO_DUENO
-echo ""
-echo "2️⃣  Número del BOT (el que va a contestar a los clientes)"
-echo "   Ejemplo: 5215512345679"
-echo ""
-read -p "➤ Número del BOT: " NUMERO_BOT
+# PASO 1: Actualizar Termux
+echo -e "${AMARILLO}[1/7] Actualizando Termux...${RESET}"
+echo "   ⏳ Puede tomar 1-2 minutos..."
+pkg update -y && pkg upgrade -y
+echo -e "${VERDE}   ✅ Termux actualizado${RESET}"
 echo ""
 
-# 9. Guardar configuración
-echo "[8/8] Guardando configuración..."
-echo '{"dueno":"'$NUMERO_DUENO'","bot":"'$NUMERO_BOT'","familiares":{},"menu":{"desayunos":[],"comida":[]}}' > config.json
-
-# 10. Mensaje final
-clear
-echo "===================================="
-echo "✅ INSTALACIÓN COMPLETADA"
-echo "===================================="
+# PASO 2: Instalar herramientas básicas
+echo -e "${AMARILLO}[2/7] Instalando herramientas necesarias...${RESET}"
+pkg install -y nodejs python git wget
+echo -e "${VERDE}   ✅ Herramientas instaladas${RESET}"
 echo ""
-echo "AHORA SE INICIARÁ EL BOT"
-echo "Y TE MOSTRARÁ EL CÓDIGO DE EMPAREJAMIENTO"
-echo "PARA EL NÚMERO DEL BOT: $NUMERO_BOT"
-echo ""
-echo "INICIANDO EN 3 SEGUNDOS..."
-sleep 3
 
-# 11. INICIAR EL BOT AUTOMÁTICAMENTE
+# PASO 3: Instalar dependencias de Node.js
+echo -e "${AMARILLO}[3/7] Instalando Baileys y librerías...${RESET}"
+npm install --no-fund --no-audit @whiskeysockets/baileys@6.7.0 qrcode-terminal @xenova/transformers
+echo -e "${VERDE}   ✅ Dependencias instaladas${RESET}"
+echo ""
+
+# PASO 4: Instalar Whisper
+echo -e "${AMARILLO}[4/7] Instalando Whisper...${RESET}"
+pip install openai-whisper > /dev/null 2>&1 &
+PID=$!
+while kill -0 $PID 2>/dev/null; do
+    echo -ne "   ⏳ Instalando...\r"
+    sleep 2
+done
+echo -e "${VERDE}   ✅ Whisper instalado${RESET}"
+echo ""
+
+# PASO 5: Descargar Gemma 3 (si no existe)
+echo -e "${AMARILLO}[5/7] Verificando IA Gemma 3...${RESET}"
+if [ -f "gemma-3-1b-it-Q4_0.gguf" ]; then
+    echo -e "${VERDE}   ✅ Modelo ya existe${RESET}"
+else
+    echo "   ⏳ Descargando modelo (529MB)..."
+    wget -O gemma-3-1b-it-Q4_0.gguf --show-progress -q https://huggingface.co/google/gemma-3-1b-it-quantized/resolve/main/gemma-3-1b-it-Q4_0.gguf
+    echo -e "${VERDE}   ✅ Modelo descargado${RESET}"
+fi
+echo ""
+
+# PASO 6: Verificar sesión de WhatsApp
+echo -e "${AMARILLO}[6/7] Verificando sesión de WhatsApp...${RESET}"
+if [ -d "auth_info" ] && [ -f "auth_info/creds.json" ]; then
+    echo -e "${VERDE}   ✅ Sesión existente encontrada${RESET}"
+else
+    echo -e "${AMARILLO}   ⚠️ No hay sesión guardada (se generará código nuevo)${RESET}"
+fi
+echo ""
+
+# PASO 7: Iniciar bot
+echo -e "${AMARILLO}[7/7] Iniciando bot...${RESET}"
+echo ""
+sleep 2
+
+# Ejecutar bot.js
 node bot.js
