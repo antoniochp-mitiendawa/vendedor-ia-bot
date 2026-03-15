@@ -18,7 +18,7 @@ NODE_OK=0
 PYTHON_OK=0
 GIT_OK=0
 BAILEYS_OK=0
-VOSK_OK=0
+SHERPA_OK=0
 MODELO_OK=0
 SESION_OK=0
 
@@ -39,20 +39,13 @@ else
 fi
 echo ""
 
-# VERIFICAR Python
+# VERIFICAR Python (opcional)
 echo -e "${AMARILLO}[2/8] Verificando Python...${RESET}"
 if command -v python &> /dev/null; then
     PYTHON_OK=1
     echo -e "${VERDE}   ✅ Python ya está instalado${RESET}"
 else
-    echo -e "${AMARILLO}   ⚠️ Python no encontrado, instalando...${RESET}"
-    pkg install -y python
-    if command -v python &> /dev/null; then
-        PYTHON_OK=1
-        echo -e "${VERDE}   ✅ Python instalado${RESET}"
-    else
-        echo -e "${ROJO}   ❌ Error instalando Python${RESET}"
-    fi
+    echo -e "${AMARILLO}   ⚠️ Python no encontrado (opcional, se omitirá)${RESET}"
 fi
 echo ""
 
@@ -81,71 +74,59 @@ else
 fi
 echo ""
 
-# INSTALAR DEPENDENCIAS NODE.JS (PRIMERO BAILEYS, LUEGO VOSK POR SEPARADO)
+# INSTALAR DEPENDENCIAS NODE.JS (PRIMERO BAILEYS SOLO)
 echo -e "${AMARILLO}[5/8] Instalando dependencias Node.js...${RESET}"
 
-# Instalar Baileys y otras dependencias (sin Vosk)
+# Instalar Baileys y otras dependencias básicas
 npm install @whiskeysockets/baileys
 npm install @hapi/boom
 npm install qrcode-terminal
 npm install axios
 npm install pino
-npm install link-preview-js
-npm install @rodrigogs/baileys-store
 
 if [ -d "node_modules/@whiskeysockets/baileys" ]; then
     BAILEYS_OK=1
     echo -e "${VERDE}   ✅ Baileys instalado correctamente${RESET}"
-    
-    # AHORA instalar Vosk por separado (para que no afecte a Baileys)
-    echo -e "${AMARILLO}   Instalando Vosk por separado...${RESET}"
-    npm install vosk@0.3.45
-    if [ -d "node_modules/vosk" ]; then
-        VOSK_OK=1
-        echo -e "${VERDE}   ✅ Vosk instalado${RESET}"
-    else
-        echo -e "${ROJO}   ❌ Error instalando Vosk${RESET}"
-        echo -e "${AMARILLO}   ⚠️ Continuando sin Vosk${RESET}"
-    fi
 else
     echo -e "${ROJO}   ❌ Error instalando Baileys${RESET}"
 fi
 echo ""
 
-# VERIFICAR VOSK Y DESCARGAR MODELO (solo si Vosk se instaló)
-if [ $VOSK_OK -eq 1 ]; then
-    echo -e "${AMARILLO}[6/8] Verificando modelo de Vosk...${RESET}"
+# INSTALAR SHERPANCNN (NUEVO - RECONOCIMIENTO DE VOZ)
+echo -e "${AMARILLO}[6/8] Instalando SherpaNcnn...${RESET}"
+
+# Instalar el paquete de Node.js para sherpa-ncnn
+npm install sherpa-ncnn
+
+if [ -d "node_modules/sherpa-ncnn" ]; then
+    echo -e "${VERDE}   ✅ SherpaNcnn instalado correctamente${RESET}"
     
-    # Descargar modelo español pequeño
-    if [ ! -d "vosk-model-small-es-0.42" ]; then
-        echo -e "${AMARILLO}   ⚠️ Descargando modelo Vosk (40MB)...${RESET}"
-        wget -O vosk-model-small-es-0.42.zip https://alphacephei.com/vosk/models/vosk-model-small-es-0.42.zip
-        unzip vosk-model-small-es-0.42.zip
-        rm vosk-model-small-es-0.42.zip
-        echo -e "${VERDE}   ✅ Modelo Vosk descargado${RESET}"
+    # Descargar modelo en español para sherpa-ncnn
+    echo -e "${AMARILLO}   ⚠️ Descargando modelo de voz (35MB)...${RESET}"
+    wget -O sherpa-model.zip https://github.com/k2-fsa/sherpa-ncnn/releases/download/models/sherpa-ncnn-streaming-zipformer-es-2024-02-08.zip
+    unzip sherpa-model.zip
+    rm sherpa-model.zip
+    
+    if [ -d "sherpa-ncnn-streaming-zipformer-es-2024-02-08" ]; then
+        SHERPA_OK=1
+        echo -e "${VERDE}   ✅ Modelo Sherpa descargado${RESET}"
     else
-        echo -e "${VERDE}   ✅ Modelo Vosk ya existe${RESET}"
+        echo -e "${ROJO}   ❌ Error descargando modelo Sherpa${RESET}"
     fi
 else
-    echo -e "${AMARILLO}[6/8] Saltando Vosk (no instalado)...${RESET}"
+    echo -e "${ROJO}   ❌ Error instalando SherpaNcnn${RESET}"
+    echo -e "${AMARILLO}   ⚠️ Continuando sin reconocimiento de voz${RESET}"
 fi
 echo ""
 
-# VERIFICAR MODELO IA (TinyLlama)
-echo -e "${AMARILLO}[7/8] Verificando modelo IA...${RESET}"
+# VERIFICAR MODELO IA (TinyLlama - opcional)
+echo -e "${AMARILLO}[7/8] Verificando modelo IA (opcional)...${RESET}"
 if [ ! -f "modelo.gguf" ]; then
-    echo -e "${AMARILLO}   ⚠️ Descargando modelo (670MB)...${RESET}"
-    wget -O modelo.gguf https://huggingface.co/TheBloke/TinyLlama-1.1B-GGUF/resolve/main/tinyllama-1.1b.Q4_K_M.gguf
-    if [ $? -eq 0 ]; then
-        MODELO_OK=1
-        echo -e "${VERDE}   ✅ Modelo descargado${RESET}"
-    else
-        echo -e "${ROJO}   ❌ Error descargando modelo${RESET}"
-        echo -e "${AMARILLO}   ⚠️ Continuando sin IA local${RESET}"
-    fi
+    echo -e "${AMARILLO}   ⚠️ Modelo no encontrado (opcional, se omitirá)${RESET}"
+    echo -e "${AMARILLO}   Puedes descargarlo después con: wget [URL]${RESET}"
 else
     MODELO_OK=1
-    echo -e "${VERDE}   ✅ Modelo ya existe${RESET}"
+    echo -e "${VERDE}   ✅ Modelo IA ya existe${RESET}"
 fi
 echo ""
 
@@ -204,10 +185,10 @@ echo -e "${VERDE}📊 RESUMEN DE INSTALACIÓN${RESET}"
 echo -e "${AZUL}====================================${RESET}"
 echo ""
 [ $NODE_OK -eq 1 ] && echo -e "${VERDE}✅ Node.js: Instalado${RESET}" || echo -e "${ROJO}❌ Node.js: No instalado${RESET}"
-[ $PYTHON_OK -eq 1 ] && echo -e "${VERDE}✅ Python: Instalado${RESET}" || echo -e "${ROJO}❌ Python: No instalado${RESET}"
+[ $PYTHON_OK -eq 1 ] && echo -e "${VERDE}✅ Python: Instalado${RESET}" || echo -e "${AMARILLO}⚠️ Python: No instalado${RESET}"
 [ $GIT_OK -eq 1 ] && echo -e "${VERDE}✅ Git: Instalado${RESET}" || echo -e "${ROJO}❌ Git: No instalado${RESET}"
 [ $BAILEYS_OK -eq 1 ] && echo -e "${VERDE}✅ Baileys: Instalado${RESET}" || echo -e "${ROJO}❌ Baileys: No instalado${RESET}"
-[ $VOSK_OK -eq 1 ] && echo -e "${VERDE}✅ Vosk: Instalado${RESET}" || echo -e "${AMARILLO}⚠️ Vosk: No instalado${RESET}"
+[ $SHERPA_OK -eq 1 ] && echo -e "${VERDE}✅ SherpaNcnn: Instalado${RESET}" || echo -e "${AMARILLO}⚠️ SherpaNcnn: No instalado${RESET}"
 [ $MODELO_OK -eq 1 ] && echo -e "${VERDE}✅ Modelo IA: Instalado${RESET}" || echo -e "${AMARILLO}⚠️ Modelo IA: No instalado${RESET}"
 [ $SESION_OK -eq 1 ] && echo -e "${VERDE}✅ Sesión WhatsApp: Activa${RESET}" || echo -e "${AMARILLO}⚠️ Sesión WhatsApp: Nueva${RESET}"
 echo ""
