@@ -4,7 +4,7 @@ const fs = require('fs');
 const readline = require('readline');
 
 // Cargar configuración
-let config = { dueno: "", bot: "" };
+let config = { dueno: "", bot: "", familiares: {}, menu: { desayunos: [], comida: [] } };
 try {
     config = JSON.parse(fs.readFileSync('./config.json'));
     console.log(`📱 Configuración cargada:`);
@@ -28,18 +28,10 @@ function log(mensaje) {
     console.log(`[${fecha}] ${mensaje}`);
 }
 
-// Función para pedir número (solo si es necesario)
-function pedirNumeroSilencioso() {
-    return new Promise((resolve) => {
-        const rl = readline.createInterface({
-            input: process.stdin,
-            output: process.stdout
-        });
-        rl.question('📱 Introduce el número del bot: ', (numero) => {
-            rl.close();
-            resolve(numero.trim());
-        });
-    });
+// Función para formatear código como en tu ejemplo
+function formatearCodigo(codigo) {
+    if (!codigo) return '';
+    return codigo.match(/.{1,4}/g)?.join('-') || codigo;
 }
 
 async function iniciarBot() {
@@ -72,7 +64,7 @@ async function iniciarBot() {
                     const codigo = await sock.requestPairingCode(numeroBot);
                     
                     // Formatear código con guiones cada 4 dígitos (como en tu ejemplo)
-                    const codigoFormateado = codigo.match(/.{1,4}/g)?.join('-') || codigo;
+                    const codigoFormateado = formatearCodigo(codigo);
                     
                     codigoGenerado = true;
                     
@@ -176,6 +168,22 @@ async function iniciarBot() {
             // Limpiar número para comparación
             const numeroLimpio = numero.split('@')[0];
             
+            // Verificar si es un familiar (funcionalidad de familiares)
+            let esFamiliar = false;
+            if (config.familiares && config.familiares[numeroLimpio]) {
+                esFamiliar = true;
+                // Verificar palabras clave para familiares
+                const palabrasClave = ['menu', 'desayuno', 'comida', 'que hay', 'precios'];
+                const contienePalabraClave = palabrasClave.some(palabra => 
+                    texto.toLowerCase().includes(palabra)
+                );
+                
+                if (!contienePalabraClave) {
+                    log('👨‍👩‍👧 Familiar ignorado: ' + numeroLimpio);
+                    return; // Ignorar mensaje
+                }
+            }
+            
             // Si es el dueño
             if (numeroLimpio === config.dueno) {
                 log('📝 INSTRUCCIÓN DEL DUEÑO: ' + texto);
@@ -183,7 +191,8 @@ async function iniciarBot() {
                 // Simular que está escribiendo
                 await sock.sendPresenceUpdate('composing', numero);
                 
-                // Responder confirmación (igual que en tu ejemplo)
+                // Procesar instrucciones de voz (aquí irá la IA después)
+                // Por ahora solo confirmar
                 setTimeout(async () => {
                     await sock.sendMessage(numero, { 
                         text: '✅ Instrucción recibida' 
@@ -197,30 +206,51 @@ async function iniciarBot() {
                 // Simular que está escribiendo
                 await sock.sendPresenceUpdate('composing', numero);
                 
-                // Respuesta básica del menú
-                if (texto.toLowerCase().includes('hola') || 
-                    texto.toLowerCase().includes('buenos') ||
-                    texto.toLowerCase().includes('menu') ||
-                    texto.toLowerCase().includes('desayuno')) {
+                // Delay aleatorio anti-spam (entre 1 y 5 segundos)
+                const delay = Math.floor(Math.random() * 4000) + 1000;
+                
+                // Respuesta según el mensaje
+                setTimeout(async () => {
+                    let respuesta = '';
                     
-                    setTimeout(async () => {
-                        await sock.sendMessage(numero, { 
-                            text: '¡Buenos días! 🌞 Soy el asistente.\n\n' +
+                    if (texto.toLowerCase().includes('hola') || 
+                        texto.toLowerCase().includes('buenos')) {
+                        respuesta = '¡Buenos días! 🌞 Soy el asistente de Comidas Doña Rosa.\n\n' +
                                   '🍳 *Desayunos:*\n' +
                                   '• Huevos divorciados 🌶️ - $85\n' +
-                                  '• Chilaquiles 🫑 - $90\n\n' +
-                                  '☕ *Incluyen:* fruta, jugo y café\n\n' +
-                                  '¿Qué se le antoja? 😋'
-                        });
-                    }, 3000);
-                }
-                else {
-                    setTimeout(async () => {
-                        await sock.sendMessage(numero, { 
-                            text: '¿En qué puedo ayudarte? Puedes preguntar por el menú o precios.'
-                        });
-                    }, 2000);
-                }
+                                  '• Chilaquiles 🫑 - $90\n' +
+                                  '• Huevos a la mexicana 🍅 - $85\n\n' +
+                                  '☕ *Todos incluyen:* fruta, jugo y café\n\n' +
+                                  '🍽️ *Comida corrida:*\n' +
+                                  '• Sopa de verduras 🥕\n' +
+                                  '• Pollo en mole 🍗\n' +
+                                  '• Arroz blanco\n\n' +
+                                  '¿Qué se le antoja? 😋';
+                    }
+                    else if (texto.toLowerCase().includes('precio') || 
+                             texto.toLowerCase().includes('costo')) {
+                        respuesta = '💰 *Precios:*\n\n' +
+                                  'Desayunos: $85 - $90\n' +
+                                  'Comida corrida: $120\n' +
+                                  'Bebidas: $15 - $30\n\n' +
+                                  '¿Algo más que quieras saber? 🤔';
+                    }
+                    else if (texto.toLowerCase().includes('gracias')) {
+                        respuesta = '¡A ti por preferirnos! 🙏\n\n' +
+                                  'Que tengas excelente día 🌟';
+                    }
+                    else {
+                        respuesta = 'Gracias por contactarnos. 😊\n\n' +
+                                  'Puedes preguntarme por:\n' +
+                                  '• Menú del día 🍳\n' +
+                                  '• Precios 💰\n' +
+                                  '• Promociones 🎁\n\n' +
+                                  '¿En qué puedo ayudarte?';
+                    }
+                    
+                    await sock.sendMessage(numero, { text: respuesta });
+                    
+                }, delay);
             }
         });
 
