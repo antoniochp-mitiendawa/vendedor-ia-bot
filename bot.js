@@ -1,48 +1,50 @@
 const { default: makeWASocket, useMultiFileAuthState } = require('@whiskeysockets/baileys');
 const fs = require('fs');
-const path = require('path');
+const readline = require('readline');
 
 // Cargar configuración
 const config = JSON.parse(fs.readFileSync('./config.json'));
 const numeroDueno = config.dueno + '@s.whatsapp.net';
 const numeroBot = config.bot;
 
-// Variables globales
-let sock = null;
+let codigoMostrado = false;
 
-// Función para guardar log
+// Función para mostrar logs con timestamp
 function log(mensaje) {
-    const fecha = new Date().toLocaleString();
+    const fecha = new Date().toLocaleTimeString();
     console.log(`[${fecha}] ${mensaje}`);
 }
 
-// Función para iniciar el bot
+// Función principal
 async function iniciarBot() {
     try {
         const { state, saveCreds } = await useMultiFileAuthState('auth_info');
         
-        sock = makeWASocket({
+        const sock = makeWASocket({
             auth: state,
             printQRInTerminal: false,
             browser: ['Termux', 'Chrome', '20.0'],
-            syncFullHistory: false
+            syncFullHistory: false,
+            markOnlineOnConnect: true,
+            keepAliveIntervalMs: 25000
         });
 
-        // Verificar si ya está registrado
-        if (!sock.authState.creds.registered) {
+        // Si no hay credenciales registradas, generar código
+        if (!sock.authState.creds.registered && !codigoMostrado) {
             console.log('\n====================================');
-            console.log('📱 PRIMERA CONFIGURACIÓN DEL BOT');
+            console.log('📱 CONFIGURACIÓN INICIAL DEL BOT');
             console.log('====================================\n');
             
-            console.log(`🔄 Solicitando código para el número: ${numeroBot}\n`);
+            log(`🔄 Preparando código para: ${numeroBot}`);
             
-            // Esperar un momento y solicitar código
             setTimeout(async () => {
                 try {
                     const codigo = await sock.requestPairingCode(numeroBot);
                     
-                    // Formatear código (cada 4 dígitos)
+                    // Formatear código con guiones cada 4 dígitos
                     const codigoFormateado = codigo.match(/.{1,4}/g)?.join('-') || codigo;
+                    
+                    codigoMostrado = true;
                     
                     console.log('\n====================================');
                     console.log('🔐 CÓDIGO DE EMPAREJAMIENTO');
@@ -58,13 +60,12 @@ async function iniciarBot() {
                     console.log('3. Toca "Vincular con número de teléfono"');
                     console.log('4. ESCRIBE EL CÓDIGO DE ARRIBA');
                     console.log('');
-                    console.log('⚠️  NO CIERRES ESTA VENTANA');
-                    console.log('⚠️  El bot está esperando que vincules...');
+                    console.log('⏳ El bot esperará a que vincules...');
                     console.log('====================================\n');
                     
                 } catch (error) {
-                    console.log('\n❌ Error al generar código:', error.message);
-                    console.log('Reiniciando en 10 segundos...\n');
+                    log('❌ Error generando código: ' + error.message);
+                    log('Reintentando en 10 segundos...');
                     setTimeout(iniciarBot, 10000);
                 }
             }, 2000);
@@ -78,22 +79,33 @@ async function iniciarBot() {
                 console.log('\n====================================');
                 console.log('✅ BOT CONECTADO EXITOSAMENTE');
                 console.log('====================================\n');
-                console.log('Dueño configurado: ' + config.dueno);
-                console.log('Bot conectado con: ' + numeroBot);
-                console.log('\nYa puedes enviar mensajes de voz desde tu número');
-                console.log('para darle instrucciones al bot.\n');
+                log('Dueño configurado: ' + config.dueno);
+                log('Bot conectado: ' + numeroBot);
+                console.log('\n📝 El bot ya está listo para recibir instrucciones por voz\n');
             }
             
             if (connection === 'close') {
-                console.log('\n❌ Conexión cerrada. Reconectando en 5 segundos...\n');
-                setTimeout(iniciarBot, 5000);
+                const statusCode = lastDisconnect?.error?.output?.statusCode;
+                
+                // Si no es logout, reconectar
+                if (statusCode !== 401) {
+                    log('❌ Conexión cerrada. Reconectando en 5 segundos...');
+                    setTimeout(iniciarBot, 5000);
+                } else {
+                    log('🚫 Sesión cerrada. Se necesita nuevo código.');
+                    // Borrar sesión para que pida código nuevo
+                    try {
+                        fs.rmSync('auth_info', { recursive: true, force: true });
+                    } catch (e) {}
+                    setTimeout(iniciarBot, 5000);
+                }
             }
         });
 
-        // Guardar credenciales
+        // Guardar credenciales cuando se actualicen
         sock.ev.on('creds.update', saveCreds);
 
-        // Escuchar mensajes
+        // Escuchar mensajes entrantes
         sock.ev.on('messages.upsert', async ({ messages }) => {
             const msg = messages[0];
             if (!msg.message || msg.key.fromMe) return;
@@ -102,46 +114,53 @@ async function iniciarBot() {
             const texto = msg.message.conversation || 
                          msg.message.extendedTextMessage?.text || '';
 
-            // Si es el dueño, procesar instrucción
-            if (numero === numeroDueno) {
-                console.log('📝 Instrucción del dueño:', texto);
-                await sock.sendMessage(numero, { 
-                    text: '✅ Instrucción recibida. Pronto podrás dar instrucciones por voz.' 
-                });
-                return;
-            }
-
-            // Si es cliente, responder con menú básico
-            if (texto.toLowerCase().includes('hola') || 
-                texto.toLowerCase().includes('menu') ||
-                texto.toLowerCase().includes('desayuno')) {
+            // Solo procesar mensajes privados (no grupos)
+            if (!numero.includes('@g.us')) {
                 
-                await sock.sendMessage(numero, { 
-                    text: '¡Buenos días! 🌞 Soy el asistente de Comidas Doña Rosa.\n\n' +
-                          'Hoy tenemos:\n' +
-                          '🍳 *Desayunos*: Huevos divorciados, chilaquiles\n' +
-                          '☕ *Incluyen*: Fruta, jugo y café\n\n' +
-                          '¿Qué se le antoja? 😋'
-                });
+                // Si es el dueño
+                if (numero === numeroDueno) {
+                    log('📝 Instrucción del dueño: ' + texto);
+                    
+                    // Responder confirmación
+                    await sock.sendMessage(numero, { 
+                        text: '✅ Instrucción recibida. Pronto podrás dar instrucciones por voz.' 
+                    });
+                }
+                else {
+                    // Es un cliente
+                    log('💬 Cliente: ' + texto);
+                    
+                    // Respuesta básica (después se mejorará con IA)
+                    if (texto.toLowerCase().includes('hola') || 
+                        texto.toLowerCase().includes('menu') ||
+                        texto.toLowerCase().includes('desayuno')) {
+                        
+                        await sock.sendMessage(numero, { 
+                            text: '¡Buenos días! 🌞 Soy el asistente de Comidas Doña Rosa.\n\n' +
+                                  'Hoy tenemos:\n' +
+                                  '🍳 *Desayunos*: Huevos divorciados, chilaquiles, huevos a la mexicana\n' +
+                                  '☕ *Incluyen*: Fruta, jugo y café\n' +
+                                  '🍽️ *Comida corrida*: Sopa de verduras, pollo en mole, arroz\n\n' +
+                                  '¿Qué se le antoja, jefe? 😋'
+                        });
+                    }
+                }
             }
         });
 
     } catch (error) {
-        console.log('❌ Error fatal:', error.message);
-        console.log('Reiniciando en 10 segundos...');
+        log('❌ Error fatal: ' + error.message);
+        log('Reiniciando en 10 segundos...');
         setTimeout(iniciarBot, 10000);
     }
 }
 
-// Manejar cierre del programa
+// Manejar cierre del programa (Ctrl+C)
 process.on('SIGINT', () => {
     console.log('\n\n👋 Cerrando bot...');
     process.exit(0);
 });
 
 // Iniciar el bot
-console.log('\n====================================');
-console.log('🤖 BOT VENDEDOR IA INICIANDO');
-console.log('====================================\n');
-
+console.log('\n🤖 Iniciando Vendedor IA...\n');
 iniciarBot();
