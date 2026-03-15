@@ -13,7 +13,7 @@ echo -e "${VERDE}🍳 VENDEDOR IA - INSTALACIÓN${RESET}"
 echo -e "${AZUL}====================================${RESET}"
 echo ""
 
-# VARIABLES PARA LLEVAR REGISTRO
+# VARIABLES
 NODE_OK=0
 PYTHON_OK=0
 GIT_OK=0
@@ -33,8 +33,6 @@ else
     if command -v node &> /dev/null; then
         NODE_OK=1
         echo -e "${VERDE}   ✅ Node.js instalado${RESET}"
-    else
-        echo -e "${ROJO}   ❌ Error instalando Node.js${RESET}"
     fi
 fi
 echo ""
@@ -50,8 +48,6 @@ else
     if command -v python &> /dev/null; then
         PYTHON_OK=1
         echo -e "${VERDE}   ✅ Python instalado${RESET}"
-    else
-        echo -e "${ROJO}   ❌ Error instalando Python${RESET}"
     fi
 fi
 echo ""
@@ -67,8 +63,6 @@ else
     if command -v git &> /dev/null; then
         GIT_OK=1
         echo -e "${VERDE}   ✅ Git instalado${RESET}"
-    else
-        echo -e "${ROJO}   ❌ Error instalando Git${RESET}"
     fi
 fi
 echo ""
@@ -83,28 +77,24 @@ else
 fi
 echo ""
 
-# VERIFICAR/INSTALAR DEPENDENCIAS NODE.JS (BAILEYS)
+# INSTALAR DEPENDENCIAS NODE.JS (PRIMERO BAILEYS SOLO)
 echo -e "${AMARILLO}[5/8] Instalando dependencias Node.js...${RESET}"
-if [ -f "package.json" ]; then
-    npm install
-    if [ -d "node_modules/@whiskeysockets/baileys" ]; then
-        BAILEYS_OK=1
-        echo -e "${VERDE}   ✅ Baileys instalado correctamente${RESET}"
-    else
-        echo -e "${ROJO}   ❌ Error instalando Baileys${RESET}"
-    fi
+npm install @whiskeysockets/baileys@6.7.0 qrcode-terminal @hapi/boom
+if [ -d "node_modules/@whiskeysockets/baileys" ]; then
+    BAILEYS_OK=1
+    echo -e "${VERDE}   ✅ Baileys instalado correctamente${RESET}"
 else
-    echo -e "${ROJO}   ❌ No se encuentra package.json${RESET}"
+    echo -e "${ROJO}   ❌ Error instalando Baileys${RESET}"
 fi
 echo ""
 
-# VERIFICAR VOSK
+# VERIFICAR VOSK (INSTALAR POR SEPARADO)
 echo -e "${AMARILLO}[6/8] Verificando Vosk...${RESET}"
 
-# Instalar módulo Vosk (versión correcta)
+# Instalar módulo Vosk (versión 0.3.42 - SÍ EXISTE)
 if [ ! -d "node_modules/vosk" ]; then
     echo -e "${AMARILLO}   ⚠️ Instalando módulo Vosk...${RESET}"
-    npm install vosk@0.3.43
+    npm install vosk@0.3.42
 fi
 
 # Descargar modelo español pequeño
@@ -120,21 +110,20 @@ if [ -d "node_modules/vosk" ] && [ -d "vosk-model-small-es-0.42" ]; then
     echo -e "${VERDE}   ✅ Vosk instalado correctamente${RESET}"
 else
     echo -e "${ROJO}   ❌ Error instalando Vosk${RESET}"
-    echo -e "${AMARILLO}   ⚠️ Continuando sin Vosk (sin comandos de voz)${RESET}"
+    echo -e "${AMARILLO}   ⚠️ Continuando sin Vosk${RESET}"
 fi
 echo ""
 
-# VERIFICAR MODELO IA (Phi-2 - no requiere autenticación)
+# VERIFICAR MODELO IA (TinyLlama - URL CORREGIDA)
 echo -e "${AMARILLO}[7/8] Verificando modelo IA...${RESET}"
 if [ ! -f "modelo.gguf" ]; then
-    echo -e "${AMARILLO}   ⚠️ Descargando modelo (350MB)...${RESET}"
-    wget -O modelo.gguf https://huggingface.co/microsoft/phi-2/resolve/main/phi-2.Q4_K_M.gguf
+    echo -e "${AMARILLO}   ⚠️ Descargando modelo (670MB)...${RESET}"
+    wget -O modelo.gguf https://huggingface.co/TheBloke/TinyLlama-1.1B-GGUF/resolve/main/tinyllama-1.1b.Q4_K_M.gguf
     if [ $? -eq 0 ]; then
         MODELO_OK=1
         echo -e "${VERDE}   ✅ Modelo descargado${RESET}"
     else
         echo -e "${ROJO}   ❌ Error descargando modelo${RESET}"
-        echo -e "${AMARILLO}   ⚠️ Continuando sin IA local${RESET}"
     fi
 else
     MODELO_OK=1
@@ -142,14 +131,14 @@ else
 fi
 echo ""
 
-# VERIFICAR sesión de WhatsApp
+# VERIFICAR sesión WhatsApp
 echo -e "${AMARILLO}[8/8] Verificando sesión de WhatsApp...${RESET}"
 if [ -d "auth_info" ] && [ -f "auth_info/creds.json" ]; then
     if [ -s "auth_info/creds.json" ]; then
         SESION_OK=1
         echo -e "${VERDE}   ✅ Sesión existente encontrada${RESET}"
     else
-        echo -e "${ROJO}   ❌ Archivo de credenciales vacío${RESET}"
+        echo -e "${ROJO}   ❌ Archivo vacío${RESET}"
         rm -rf auth_info
     fi
 else
@@ -165,11 +154,11 @@ if [ -f "config.json" ]; then
     if [ -n "$DUENO" ] && [ -n "$BOT" ]; then
         echo -e "${VERDE}   ✅ Configuración existente: Dueño: $DUENO${RESET}"
     else
-        echo -e "${ROJO}   ❌ Archivo config.json corrupto${RESET}"
+        echo -e "${ROJO}   ❌ Archivo corrupto${RESET}"
         rm -f config.json
     fi
 else
-    echo -e "${AMARILLO}   ⚠️ No hay configuración de números${RESET}"
+    echo -e "${AMARILLO}   ⚠️ No hay configuración${RESET}"
 fi
 echo ""
 
@@ -177,11 +166,11 @@ echo ""
 if [ ! -f "config.json" ]; then
     echo -e "${AMARILLO}📱 CONFIGURACIÓN INICIAL DE NÚMEROS${RESET}"
     echo ""
-    echo "Ingresa el número del DUEÑO (el que dará instrucciones):"
+    echo "Ingresa el número del DUEÑO:"
     echo "Ejemplo: 5215512345678"
     read -p "➤ " NUMERO_DUENO
     echo ""
-    echo "Ingresa el número del BOT (el que contestará a clientes):"
+    echo "Ingresa el número del BOT:"
     echo "Ejemplo: 5215512345679"
     read -p "➤ " NUMERO_BOT
     echo ""
