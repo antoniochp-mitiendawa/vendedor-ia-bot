@@ -4,9 +4,13 @@
   "description": "Asistente IA para WhatsApp - Negocio de comida",
   "main": "bot.js",
   "dependencies": {
-    "@whiskeysockets/baileys": "^6.7.0",
-    "qrcode-terminal": "^0.12.0",
+    "@whiskeysockets/baileys": "^6.0.0",
     "@hapi/boom": "^10.0.1",
+    "qrcode-terminal": "^0.12.0",
+    "axios": "^1.6.0",
+    "pino": "^8.17.0",
+    "link-preview-js": "^3.0.0",
+    "@rodrigogs/baileys-store": "^1.0.0",
     "vosk": "0.3.45"
   },
   "scripts": {
